@@ -22,7 +22,7 @@ button:active{transform:scale(.95)}button{transition:transform .1s}
 <div id="toasts" class="fixed top-4 inset-x-0 z-[60] flex flex-col items-center gap-2 pointer-events-none"></div>
 <div id="root" class="h-full flex flex-col"></div>
 <script>
-const API = ''; // leave empty when the server also serves this page
+const API = 'https://jaxtok.onrender.com';
 let token = localStorage.getItem('jt'), ME = null, S = { tab: 'home', feed: 'foryou', q: '', chat: null }, V = {}, CUR = [], signup = false, _cb = null, _sv = null;
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
