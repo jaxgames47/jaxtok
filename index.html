@@ -1,764 +1,385 @@
 <!DOCTYPE html>
 <html lang="en" class="h-full bg-slate-950">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JaxTok Social App</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome for Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        /* Hide scrollbars for slick vertical feed */
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        @keyframes pulse-subtle {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        .animate-pulse-subtle { animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JaxTok Social App</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+body { font-family: 'Inter', sans-serif; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+</style>
 </head>
 <body class="h-full text-slate-100 flex flex-col overflow-hidden select-none">
+<div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
-    <!-- Toast Notification Container -->
-    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+<div id="app" class="flex-1 flex flex-col h-full relative overflow-hidden">
 
-    <!-- MAIN APP CONTAINER -->
-    <div id="app" class="flex-1 flex flex-col h-full relative overflow-hidden">
-        
-        <!-- AUTHENTICATION GATE -->
-        <div id="auth-gate" class="absolute inset-0 z-40 bg-slate-950 flex items-center justify-center p-4">
-            <div class="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-8 shadow-2xl backdrop-blur-xl relative overflow-hidden">
-                <div class="absolute -top-24 -right-24 w-48 h-48 bg-pink-500/10 rounded-full blur-3xl pointer-events-none"></div>
-                <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
-                
-                <div class="text-center mb-8">
-                    <div class="w-16 h-16 mx-auto mb-4 bg-gradient-to-tr from-pink-500 to-cyan-400 rounded-2xl flex items-center justify-center shadow-lg shadow-pink-500/20">
-                        <i class="fa-solid fa-bolt text-2xl text-white"></i>
-                    </div>
-                    <h1 class="text-2xl font-bold tracking-tight text-white">Welcome to JaxTok</h1>
-                    <p id="auth-subtitle" class="text-sm text-slate-400 mt-1">Sign in or create an account to access the video feed</p>
-                </div>
-
-                <form id="auth-form" class="space-y-4" onsubmit="handleAuthSubmit(event)">
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Email Address</label>
-                        <div class="relative">
-                            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                                <i class="fa-regular fa-envelope"></i>
-                            </span>
-                            <input type="email" id="auth-email" required placeholder="name@example.com"
-                                class="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all">
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Password</label>
-                        <div class="relative">
-                            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                                <i class="fa-solid fa-lock"></i>
-                            </span>
-                            <input type="password" id="auth-password" required placeholder="••••••••"
-                                class="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all">
-                        </div>
-                    </div>
-
-                    <button type="submit" id="auth-submit-btn"
-                        class="w-full py-3.5 px-4 bg-gradient-to-r from-pink-500 to-cyan-500 hover:from-pink-600 hover:to-cyan-600 text-white font-semibold rounded-xl shadow-lg shadow-pink-500/25 transition-all transform active:scale-[0.99]">
-                        Sign In
-                    </button>
-                </form>
-
-                <div class="mt-6 text-center">
-                    <button onclick="toggleAuthMode()" id="auth-toggle-btn" class="text-xs text-slate-400 hover:text-white transition-colors">
-                        Don't have an account? <span class="text-pink-400 font-semibold underline">Create one</span>
-                    </button>
-                </div>
-            </div>
+  <!-- LOGIN -->
+  <div id="auth-gate" class="absolute inset-0 z-40 bg-slate-950 flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-8 shadow-2xl">
+      <div class="text-center mb-8">
+        <div class="w-16 h-16 mx-auto mb-4 bg-gradient-to-tr from-pink-500 to-cyan-400 rounded-2xl flex items-center justify-center shadow-lg shadow-pink-500/20"><i class="fa-solid fa-bolt text-2xl text-white"></i></div>
+        <h1 class="text-2xl font-bold text-white">Welcome to JaxTok</h1>
+        <p id="auth-subtitle" class="text-sm text-slate-400 mt-1">Sign in or create an account to access the video feed</p>
+      </div>
+      <form id="auth-form" class="space-y-4" onsubmit="handleAuthSubmit(event)">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Email Address</label>
+          <input type="email" id="auth-email" required placeholder="name@example.com" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500">
         </div>
-
-        <!-- MAIN DASHBOARD CONTENT (Hidden until authenticated) -->
-        <div id="main-dashboard" class="flex-1 flex flex-col h-full hidden relative">
-            
-            <!-- TOP APP BAR -->
-            <header class="h-14 border-b border-slate-800 bg-slate-900/60 backdrop-blur-md px-4 flex items-center justify-between z-30 shrink-0">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 bg-gradient-to-tr from-pink-500 to-cyan-400 rounded-lg flex items-center justify-center">
-                        <i class="fa-solid fa-bolt text-sm text-white"></i>
-                    </div>
-                    <span class="font-extrabold tracking-tight text-lg bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">JaxTok</span>
-                </div>
-
-                <div class="flex items-center gap-3">
-                    <span id="user-display-email" class="text-xs text-slate-400 hidden sm:inline-block"></span>
-                    <button onclick="openUploadModal()" class="flex items-center gap-2 bg-pink-500 hover:bg-pink-600 text-white px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-md shadow-pink-500/20 transition-all">
-                        <i class="fa-solid fa-plus"></i> Upload / Record
-                    </button>
-                    <button onclick="logoutUser()" title="Sign Out" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs transition-colors">
-                        <i class="fa-solid fa-right-from-bracket"></i>
-                    </button>
-                </div>
-            </header>
-
-            <!-- FEED CONTAINER -->
-            <main class="flex-1 relative overflow-hidden bg-slate-950 flex justify-center">
-                <div id="feed-container" class="w-full max-w-md h-full overflow-y-scroll no-scrollbar snap-y snap-mandatory relative bg-slate-900">
-                    <!-- Dynamic Video Items injected here -->
-                </div>
-
-                <!-- Empty State Message -->
-                <div id="empty-feed" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center hidden z-10 bg-slate-900">
-                    <div class="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center text-slate-500 text-3xl mb-4">
-                        <i class="fa-solid fa-film"></i>
-                    </div>
-                    <h3 class="text-lg font-bold text-white">No Videos Found</h3>
-                    <p class="text-sm text-slate-400 max-w-xs mt-1 mb-6">Be the first creator to share a video on JaxTok!</p>
-                    <button onclick="openUploadModal()" class="px-6 py-3 bg-pink-500 hover:bg-pink-600 text-white font-semibold rounded-xl text-sm shadow-lg shadow-pink-500/25 transition-all">
-                        Create First Video
-                    </button>
-                </div>
-            </main>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Password (6+ characters)</label>
+          <input type="password" id="auth-password" required minlength="6" placeholder="••••••••" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500">
         </div>
-
-        <!-- UPLOAD / RECORD MODAL -->
-        <div id="upload-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
-            <div class="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative flex flex-col max-h-[90vh] overflow-y-auto">
-                <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
-                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
-                        <i class="fa-solid fa-video text-pink-500"></i> Create New Video
-                    </h2>
-                    <button onclick="closeUploadModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
-
-                <!-- Mode Tabs -->
-                <div class="flex bg-slate-950 p-1 rounded-xl mb-4 border border-slate-800">
-                    <button onclick="switchUploadTab('file')" id="tab-file-btn" class="flex-1 py-2 text-xs font-semibold rounded-lg bg-slate-800 text-white transition-all">Upload File</button>
-                    <button onclick="switchUploadTab('record')" id="tab-record-btn" class="flex-1 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all">Record Webcam</button>
-                </div>
-
-                <!-- File Upload Section -->
-                <div id="section-file" class="space-y-4">
-                    <div id="drop-zone" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)"
-                        class="border-2 border-dashed border-slate-700 hover:border-pink-500 bg-slate-950/50 rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center">
-                        <div class="w-12 h-12 rounded-full bg-pink-500/10 text-pink-400 flex items-center justify-center text-xl mb-3">
-                            <i class="fa-solid fa-cloud-arrow-up"></i>
-                        </div>
-                        <p class="text-sm font-medium text-slate-200">Drag & drop your video here</p>
-                        <p class="text-xs text-slate-500 mt-1">MP4, WebM or MOV up to 50MB</p>
-                        <label class="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl cursor-pointer transition-colors">
-                            Browse Files
-                            <input type="file" id="video-file-input" accept="video/mp4,video/webm,video/quicktime" class="hidden" onchange="handleFileSelected(this)">
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Webcam Recording Section -->
-                <div id="section-record" class="space-y-4 hidden">
-                    <div class="relative bg-slate-950 rounded-2xl overflow-hidden aspect-[9/16] max-h-80 flex items-center justify-center border border-slate-800">
-                        <video id="webcam-preview" autoplay muted playsinline class="w-full h-full object-cover"></video>
-                        <div id="recording-timer" class="absolute top-3 left-3 bg-red-500/80 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-xs font-bold hidden items-center gap-1.5">
-                            <span class="w-2 h-2 rounded-full bg-white animate-ping"></span> REC <span id="timer-display">00:00</span>
-                        </div>
-                    </div>
-                    <div class="flex justify-center gap-3">
-                        <button type="button" id="start-cam-btn" onclick="startWebcam()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-colors">
-                            <i class="fa-solid fa-camera mr-1"></i> Start Camera
-                        </button>
-                        <button type="button" id="rec-btn" onclick="toggleRecording()" disabled class="px-4 py-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-colors">
-                            <i class="fa-solid fa-circle mr-1"></i> Start Recording
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Video Preview / Details Form -->
-                <div id="section-details" class="space-y-4 mt-4 hidden">
-                    <div class="flex items-center gap-3 bg-slate-950 p-3 rounded-xl border border-slate-800">
-                        <video id="selected-video-preview" class="w-16 h-16 rounded-lg object-cover bg-black"></video>
-                        <div class="flex-1 min-w-0">
-                            <p id="selected-filename" class="text-xs font-medium text-slate-200 truncate">video.mp4</p>
-                            <p class="text-xs text-slate-500 mt-0.5">Ready to publish</p>
-                        </div>
-                        <button onclick="resetSelectedVideo()" class="text-slate-400 hover:text-red-400 text-xs p-2">
-                            <i class="fa-solid fa-trash"></i>
-                        </button>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Caption</label>
-                        <textarea id="video-caption-input" rows="2" placeholder="Write an awesome caption... #fyp"
-                            class="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 resize-none"></textarea>
-                    </div>
-
-                    <button onclick="publishVideo()" id="publish-btn"
-                        class="w-full py-3 bg-gradient-to-r from-pink-500 to-cyan-500 hover:from-pink-600 hover:to-cyan-600 text-white font-semibold rounded-xl text-sm shadow-lg shadow-pink-500/25 transition-all">
-                        Publish Video
-                    </button>
-                </div>
-            </div>
-        </div>
-
+        <button type="submit" id="auth-submit-btn" class="w-full py-3.5 px-4 bg-gradient-to-r from-pink-500 to-cyan-500 hover:from-pink-600 hover:to-cyan-600 text-white font-semibold rounded-xl shadow-lg shadow-pink-500/25">Sign In</button>
+      </form>
+      <div class="mt-6 text-center">
+        <button onclick="toggleAuthMode()" id="auth-toggle-btn" class="text-xs text-slate-400 hover:text-white">Don't have an account? <span class="text-pink-400 font-semibold underline">Create one</span></button>
+      </div>
     </div>
+  </div>
 
-    <!-- APPLICATION LOGIC -->
-    <script>
-        // --- INDEXEDDB STORAGE ENGINE (Bypasses Firestore 1MB Limit) ---
-        const DB_NAME = 'JaxTokDB';
-        const DB_VERSION = 1;
-        const STORE_VIDEOS = 'videos';
-        const STORE_USERS = 'users';
+  <!-- MAIN -->
+  <div id="main-dashboard" class="flex-1 flex flex-col h-full hidden relative">
+    <header class="h-14 border-b border-slate-800 bg-slate-900/60 backdrop-blur-md px-4 flex items-center justify-between z-30 shrink-0">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 bg-gradient-to-tr from-pink-500 to-cyan-400 rounded-lg flex items-center justify-center"><i class="fa-solid fa-bolt text-sm text-white"></i></div>
+        <span class="font-extrabold text-lg text-white">JaxTok</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="user-display-email" class="text-xs text-slate-400 hidden sm:inline-block"></span>
+        <button onclick="openUploadModal()" class="flex items-center gap-2 bg-pink-500 hover:bg-pink-600 text-white px-3.5 py-1.5 rounded-full text-xs font-semibold"><i class="fa-solid fa-plus"></i> Upload / Record</button>
+        <button onclick="logoutUser()" title="Sign Out" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs"><i class="fa-solid fa-right-from-bracket"></i></button>
+      </div>
+    </header>
+    <main class="flex-1 relative overflow-hidden bg-slate-950 flex justify-center">
+      <div id="feed-container" class="w-full max-w-md h-full overflow-y-scroll no-scrollbar snap-y snap-mandatory relative bg-slate-900"></div>
+      <div id="empty-feed" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center hidden z-10 bg-slate-900">
+        <div class="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center text-slate-500 text-3xl mb-4"><i class="fa-solid fa-film"></i></div>
+        <h3 class="text-lg font-bold text-white">No Videos Found</h3>
+        <p class="text-sm text-slate-400 max-w-xs mt-1 mb-6">Be the first creator to share a video on JaxTok!</p>
+        <button onclick="openUploadModal()" class="px-6 py-3 bg-pink-500 hover:bg-pink-600 text-white font-semibold rounded-xl text-sm">Create First Video</button>
+      </div>
+    </main>
+  </div>
 
-        let db = null;
-        let currentUser = null;
-        let isSignUpMode = false;
-        let activeVideoBlob = null;
-        let mediaRecorder = null;
-        let recordedChunks = [];
-        let recordingInterval = null;
-        let recordingSeconds = 0;
-        let webcamStream = null;
+  <!-- UPLOAD MODAL -->
+  <div id="upload-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+        <h2 class="text-lg font-bold text-white"><i class="fa-solid fa-video text-pink-500"></i> Create New Video</h2>
+        <button onclick="closeUploadModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="flex bg-slate-950 p-1 rounded-xl mb-4 border border-slate-800">
+        <button onclick="switchUploadTab('file')" id="tab-file-btn" class="flex-1 py-2 text-xs font-semibold rounded-lg bg-slate-800 text-white">Upload File</button>
+        <button onclick="switchUploadTab('record')" id="tab-record-btn" class="flex-1 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white">Record Webcam</button>
+      </div>
+      <div id="section-file" class="space-y-4">
+        <div id="drop-zone" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)" class="border-2 border-dashed border-slate-700 hover:border-pink-500 bg-slate-950/50 rounded-2xl p-8 text-center flex flex-col items-center justify-center">
+          <div class="w-12 h-12 rounded-full bg-pink-500/10 text-pink-400 flex items-center justify-center text-xl mb-3"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+          <p class="text-sm font-medium text-slate-200">Drag &amp; drop your video here</p>
+          <p class="text-xs text-slate-500 mt-1">MP4, WebM or MOV up to 50MB</p>
+          <label class="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl cursor-pointer">Browse Files
+            <input type="file" id="video-file-input" accept="video/mp4,video/webm,video/quicktime" class="hidden" onchange="handleFileSelected(this)">
+          </label>
+        </div>
+      </div>
+      <div id="section-record" class="space-y-4 hidden">
+        <div class="relative bg-slate-950 rounded-2xl overflow-hidden aspect-[9/16] max-h-80 flex items-center justify-center border border-slate-800">
+          <video id="webcam-preview" autoplay muted playsinline class="w-full h-full object-cover"></video>
+          <div id="recording-timer" class="absolute top-3 left-3 bg-red-500/80 text-white px-2.5 py-1 rounded-full text-xs font-bold hidden items-center gap-1.5">REC <span id="timer-display">00:00</span></div>
+        </div>
+        <div class="flex justify-center gap-3">
+          <button type="button" id="start-cam-btn" onclick="startWebcam()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl"><i class="fa-solid fa-camera mr-1"></i> Start Camera</button>
+          <button type="button" id="rec-btn" onclick="toggleRecording()" disabled class="px-4 py-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-semibold rounded-xl"><i class="fa-solid fa-circle mr-1"></i> Start Recording</button>
+        </div>
+      </div>
+      <div id="section-details" class="space-y-4 mt-4 hidden">
+        <div class="flex items-center gap-3 bg-slate-950 p-3 rounded-xl border border-slate-800">
+          <video id="selected-video-preview" muted class="w-16 h-16 rounded-lg object-cover bg-black"></video>
+          <div class="flex-1 min-w-0">
+            <p id="selected-filename" class="text-xs font-medium text-slate-200 truncate">video.mp4</p>
+            <p class="text-xs text-slate-500 mt-0.5">Ready to publish</p>
+          </div>
+          <button onclick="resetSelectedVideo()" class="text-slate-400 hover:text-red-400 text-xs p-2"><i class="fa-solid fa-trash"></i></button>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Caption</label>
+          <textarea id="video-caption-input" rows="2" placeholder="Write an awesome caption... #fyp" class="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 resize-none"></textarea>
+        </div>
+        <button onclick="publishVideo()" id="publish-btn" class="w-full py-3 bg-gradient-to-r from-pink-500 to-cyan-500 text-white font-semibold rounded-xl text-sm">Publish Video</button>
+      </div>
+    </div>
+  </div>
+</div>
 
-        function initDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(DB_NAME, DB_VERSION);
-                request.onerror = (e) => reject(e);
-                request.onsuccess = (e) => {
-                    db = e.target.result;
-                    resolve(db);
-                };
-                request.onupgradeneeded = (e) => {
-                    const database = e.target.result;
-                    if (!database.objectStoreNames.contains(STORE_VIDEOS)) {
-                        database.createObjectStore(STORE_VIDEOS, { keyPath: 'id', autoIncrement: true });
-                    }
-                    if (!database.objectStoreNames.contains(STORE_USERS)) {
-                        database.createObjectStore(STORE_USERS, { keyPath: 'email' });
-                    }
-                };
-            });
-        }
+<script>
+// If the server also serves this page (recommended), leave this empty.
+const API_BASE = '';
 
-        // --- TOAST NOTIFICATION ---
-        function showToast(message, type = 'success') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            const bg = type === 'error' ? 'bg-red-600' : 'bg-slate-800 border border-slate-700';
-            toast.className = `${bg} text-white px-4 py-3 rounded-xl shadow-2xl text-xs font-semibold flex items-center gap-2 pointer-events-auto transition-all transform translate-y-2 opacity-0`;
-            toast.innerHTML = `<i class="fa-solid ${type === 'error' ? 'fa-circle-exclamation text-white' : 'fa-circle-check text-pink-400'}"></i> ${message}`;
-            container.appendChild(toast);
-            setTimeout(() => {
-                toast.classList.remove('translate-y-2', 'opacity-0');
-            }, 10);
-            setTimeout(() => {
-                toast.classList.add('translate-y-2', 'opacity-0');
-                setTimeout(() => toast.remove(), 300);
-            }, 3500);
-        }
+let token = localStorage.getItem('jaxtok_token');
+let currentUser = null, isSignUpMode = false, activeVideoBlob = null;
+let mediaRecorder = null, recordedChunks = [], recordingInterval = null, recordingSeconds = 0, webcamStream = null;
+let feedVideos = [];
 
-        // --- AUTHENTICATION ---
-        function toggleAuthMode() {
-            isSignUpMode = !isSignUpMode;
-            document.getElementById('auth-subtitle').innerText = isSignUpMode ? 'Create a new account to join JaxTok' : 'Sign in or create an account to access the video feed';
-            document.getElementById('auth-submit-btn').innerText = isSignUpMode ? 'Create Account' : 'Sign In';
-            document.getElementById('auth-toggle-btn').innerHTML = isSignUpMode ? 
-                'Already have an account? <span class="text-pink-400 font-semibold underline">Sign In</span>' : 
-                'Don\'t have an account? <span class="text-pink-400 font-semibold underline">Create one</span>';
-        }
+const $ = (id) => document.getElementById(id);
+const escapeHtml = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 
-        async function handleAuthSubmit(e) {
-            e.preventDefault();
-            const email = document.getElementById('auth-email').value.trim();
-            const password = document.getElementById('auth-password').value;
+async function api(path, opts = {}) {
+  opts.headers = { ...(opts.headers || {}), ...(token ? { Authorization: 'Bearer ' + token } : {}) };
+  const r = await fetch(API_BASE + path, opts);
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Request failed');
+  return d;
+}
+const jsonPost = (body) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
-            try {
-                const tx = db.transaction(STORE_USERS, 'readwrite');
-                const store = tx.objectStore(STORE_USERS);
-                
-                if (isSignUpMode) {
-                    store.get(email).onsuccess = (event) => {
-                        if (event.target.result) {
-                            showToast('Email already registered. Please sign in.', 'error');
-                        } else {
-                            store.add({ email, password, createdAt: new Date().toISOString() });
-                            loginSuccess(email);
-                            showToast('Account created successfully!');
-                        }
-                    };
-                } else {
-                    store.get(email).onsuccess = (event) => {
-                        const user = event.target.result;
-                        if (!user || user.password !== password) {
-                            showToast('Invalid email or password.', 'error');
-                        } else {
-                            loginSuccess(email);
-                            showToast('Welcome back, ' + email);
-                        }
-                    };
-                }
-            } catch (err) {
-                showToast('Authentication error.', 'error');
-            }
-        }
+function showToast(message, type = 'success') {
+  const t = document.createElement('div');
+  t.className = (type === 'error' ? 'bg-red-600' : 'bg-slate-800 border border-slate-700') + ' text-white px-4 py-3 rounded-xl shadow-2xl text-xs font-semibold pointer-events-auto';
+  t.textContent = message;
+  $('toast-container').appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
 
-        function loginSuccess(email) {
-            currentUser = email;
-            localStorage.setItem('jaxtok_user', email);
-            document.getElementById('auth-gate').classList.add('hidden');
-            document.getElementById('main-dashboard').classList.remove('hidden');
-            document.getElementById('user-display-email').innerText = email;
-            loadFeed();
-        }
+// ---- AUTH ----
+function toggleAuthMode() {
+  isSignUpMode = !isSignUpMode;
+  $('auth-subtitle').innerText = isSignUpMode ? 'Create a new account to join JaxTok' : 'Sign in or create an account to access the video feed';
+  $('auth-submit-btn').innerText = isSignUpMode ? 'Create Account' : 'Sign In';
+  $('auth-toggle-btn').innerHTML = isSignUpMode
+    ? 'Already have an account? <span class="text-pink-400 font-semibold underline">Sign In</span>'
+    : 'Don\'t have an account? <span class="text-pink-400 font-semibold underline">Create one</span>';
+}
+async function handleAuthSubmit(e) {
+  e.preventDefault();
+  try {
+    const d = await api(isSignUpMode ? '/api/signup' : '/api/login', jsonPost({ email: $('auth-email').value.trim(), password: $('auth-password').value }));
+    token = d.token;
+    localStorage.setItem('jaxtok_token', token);
+    loginSuccess(d.username);
+    showToast(isSignUpMode ? 'Account created!' : 'Welcome back, ' + d.username);
+  } catch (err) { showToast(err.message, 'error'); }
+}
+function loginSuccess(name) {
+  currentUser = name;
+  $('auth-gate').classList.add('hidden');
+  $('main-dashboard').classList.remove('hidden');
+  $('user-display-email').innerText = name;
+  loadFeed();
+}
+function logoutUser() {
+  currentUser = null; token = null;
+  localStorage.removeItem('jaxtok_token');
+  $('main-dashboard').classList.add('hidden');
+  $('auth-gate').classList.remove('hidden');
+  $('auth-form').reset();
+  stopWebcam();
+}
 
-        function logoutUser() {
-            currentUser = null;
-            localStorage.removeItem('jaxtok_user');
-            document.getElementById('main-dashboard').classList.add('hidden');
-            document.getElementById('auth-gate').classList.remove('hidden');
-            document.getElementById('auth-form').reset();
-            stopWebcam();
-        }
+// ---- UPLOAD MODAL ----
+function openUploadModal() { $('upload-modal').classList.remove('hidden'); switchUploadTab('file'); }
+function closeUploadModal() { $('upload-modal').classList.add('hidden'); stopWebcam(); resetSelectedVideo(); }
+function switchUploadTab(mode) {
+  const on = 'flex-1 py-2 text-xs font-semibold rounded-lg bg-slate-800 text-white';
+  const off = 'flex-1 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white';
+  $('tab-file-btn').className = mode === 'file' ? on : off;
+  $('tab-record-btn').className = mode === 'file' ? off : on;
+  $('section-file').classList.toggle('hidden', mode !== 'file');
+  $('section-record').classList.toggle('hidden', mode === 'file');
+  if (mode === 'file') stopWebcam();
+}
+function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('border-pink-500'); }
+function handleDragLeave(e) { e.preventDefault(); e.currentTarget.classList.remove('border-pink-500'); }
+function handleDrop(e) {
+  e.preventDefault(); e.currentTarget.classList.remove('border-pink-500');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('video/')) processVideoBlob(f, f.name); else showToast('Please drop a valid video file.', 'error');
+}
+function handleFileSelected(input) { if (input.files.length) processVideoBlob(input.files[0], input.files[0].name); }
+function processVideoBlob(blob, filename) {
+  activeVideoBlob = blob;
+  $('section-file').classList.add('hidden');
+  $('section-record').classList.add('hidden');
+  $('section-details').classList.remove('hidden');
+  $('selected-video-preview').src = URL.createObjectURL(blob);
+  $('selected-filename').innerText = filename;
+}
+function resetSelectedVideo() {
+  activeVideoBlob = null;
+  $('video-caption-input').value = '';
+  $('video-file-input').value = '';
+  $('section-details').classList.add('hidden');
+  $('section-file').classList.remove('hidden');
+  if ($('tab-record-btn').classList.contains('bg-slate-800')) switchUploadTab('record');
+}
 
-        // --- UPLOAD / MODAL CONTROLS ---
-        function openUploadModal() {
-            document.getElementById('upload-modal').classList.remove('hidden');
-            switchUploadTab('file');
-        }
+// ---- WEBCAM ----
+async function startWebcam() {
+  try {
+    webcamStream = await navigator.mediaDevices.getUserMedia({ video: { width: 720, height: 1280 }, audio: true });
+    $('webcam-preview').srcObject = webcamStream;
+    $('start-cam-btn').classList.add('hidden');
+    $('rec-btn').disabled = false;
+  } catch (err) { showToast('Unable to access webcam/microphone.', 'error'); }
+}
+function stopWebcam() {
+  if (webcamStream) { webcamStream.getTracks().forEach((t) => t.stop()); webcamStream = null; }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  clearInterval(recordingInterval);
+  $('start-cam-btn').classList.remove('hidden');
+  $('rec-btn').disabled = true;
+  $('rec-btn').innerHTML = '<i class="fa-solid fa-circle mr-1"></i> Start Recording';
+  $('recording-timer').classList.add('hidden');
+}
+function toggleRecording() {
+  if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+    recordedChunks = [];
+    try { mediaRecorder = new MediaRecorder(webcamStream, { mimeType: 'video/webm;codecs=vp8,opus' }); }
+    catch (e) { mediaRecorder = new MediaRecorder(webcamStream); }
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      const type = (mediaRecorder.mimeType || 'video/webm').split(';')[0];
+      processVideoBlob(new Blob(recordedChunks, { type }), 'webcam_recording');
+      stopWebcam();
+    };
+    mediaRecorder.start();
+    $('rec-btn').innerHTML = '<i class="fa-solid fa-stop mr-1"></i> Stop Recording';
+    recordingSeconds = 0;
+    $('recording-timer').classList.remove('hidden');
+    $('recording-timer').classList.add('flex');
+    recordingInterval = setInterval(() => {
+      recordingSeconds++;
+      $('timer-display').innerText = String(Math.floor(recordingSeconds / 60)).padStart(2, '0') + ':' + String(recordingSeconds % 60).padStart(2, '0');
+    }, 1000);
+  } else { mediaRecorder.stop(); clearInterval(recordingInterval); }
+}
 
-        function closeUploadModal() {
-            document.getElementById('upload-modal').classList.add('hidden');
-            stopWebcam();
-            resetSelectedVideo();
-        }
+// ---- PUBLISH ----
+async function publishVideo() {
+  if (!activeVideoBlob) return;
+  const btn = $('publish-btn');
+  btn.disabled = true; btn.innerText = 'Uploading...';
+  const fd = new FormData();
+  fd.append('caption', $('video-caption-input').value.trim() || 'No caption');
+  fd.append('video', activeVideoBlob, activeVideoBlob.name || 'recording.webm');
+  try {
+    await api('/api/videos', { method: 'POST', body: fd });
+    showToast('Video published!');
+    closeUploadModal();
+    loadFeed();
+  } catch (err) { showToast(err.message, 'error'); }
+  btn.disabled = false; btn.innerText = 'Publish Video';
+}
 
-        function switchUploadTab(mode) {
-            const fileBtn = document.getElementById('tab-file-btn');
-            const recordBtn = document.getElementById('tab-record-btn');
-            const sectionFile = document.getElementById('section-file');
-            const sectionRecord = document.getElementById('section-record');
+// ---- FEED ----
+async function loadFeed() {
+  const container = $('feed-container');
+  try { feedVideos = await api('/api/videos'); }
+  catch (err) { if (!feedVideos.length) { showToast('Could not load videos.', 'error'); return; } }
+  const top = container.scrollTop;
+  container.innerHTML = '';
+  $('empty-feed').classList.toggle('hidden', feedVideos.length > 0);
+  feedVideos.forEach((v) => {
+    const card = document.createElement('div');
+    card.className = 'w-full h-full snap-start relative bg-black flex items-center justify-center overflow-hidden';
+    card.innerHTML = `
+      <video src="${API_BASE + v.url}" loop playsinline preload="metadata" class="w-full h-full object-cover cursor-pointer" onclick="togglePlayPause(this)"></video>
+      <div class="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/60 to-transparent pointer-events-none"></div>
+      <div class="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none"></div>
+      <div class="absolute right-4 bottom-24 flex flex-col items-center gap-5 z-20">
+        <div class="w-11 h-11 rounded-full bg-gradient-to-tr from-pink-500 to-cyan-400 p-0.5"><div class="w-full h-full bg-slate-900 rounded-full flex items-center justify-center font-bold text-xs text-white">${escapeHtml(v.author.charAt(0).toUpperCase())}</div></div>
+        <button onclick="toggleLike('${v.id}')" class="flex flex-col items-center gap-1">
+          <div class="w-11 h-11 rounded-full bg-slate-900/60 flex items-center justify-center text-xl ${v.liked ? 'text-pink-500' : 'text-white'}"><i class="fa-${v.liked ? 'solid' : 'regular'} fa-heart"></i></div>
+          <span class="text-xs font-semibold text-white">${v.likes}</span>
+        </button>
+        <button onclick="openComments('${v.id}')" class="flex flex-col items-center gap-1">
+          <div class="w-11 h-11 rounded-full bg-slate-900/60 flex items-center justify-center text-lg text-white"><i class="fa-solid fa-comment-dots"></i></div>
+          <span class="text-xs font-semibold text-white">${v.comments.length}</span>
+        </button>
+        <button onclick="shareVideo('${v.id}')" class="flex flex-col items-center gap-1">
+          <div class="w-11 h-11 rounded-full bg-slate-900/60 flex items-center justify-center text-lg text-white"><i class="fa-solid fa-share"></i></div>
+          <span class="text-xs font-semibold text-white">Share</span>
+        </button>
+      </div>
+      <div class="absolute left-4 bottom-6 right-20 z-20">
+        <h4 class="font-bold text-white text-sm mb-1">@${escapeHtml(v.author)}</h4>
+        <p class="text-xs text-slate-200 line-clamp-2 leading-relaxed">${escapeHtml(v.caption)}</p>
+      </div>`;
+    container.appendChild(card);
+  });
+  container.scrollTop = top;
+  const obs = new IntersectionObserver((entries) => entries.forEach((en) => {
+    if (en.isIntersecting) en.target.play().catch(() => {}); else { en.target.pause(); en.target.currentTime = 0; }
+  }), { threshold: 0.6 });
+  container.querySelectorAll('video').forEach((el) => obs.observe(el));
+}
+function togglePlayPause(el) { el.paused ? el.play() : el.pause(); }
 
-            if (mode === 'file') {
-                fileBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-lg bg-slate-800 text-white transition-all';
-                recordBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
-                sectionFile.classList.remove('hidden');
-                sectionRecord.classList.add('hidden');
-                stopWebcam();
-            } else {
-                recordBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-lg bg-slate-800 text-white transition-all';
-                fileBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
-                sectionRecord.classList.remove('hidden');
-                sectionFile.classList.add('hidden');
-            }
-        }
+async function toggleLike(id) {
+  try { await api('/api/videos/' + id + '/like', { method: 'POST' }); loadFeed(); }
+  catch (err) { showToast(err.message, 'error'); }
+}
+function shareVideo(id) {
+  const url = location.href.split('#')[0] + '#video-' + id;
+  if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
+  showToast('Link copied!');
+}
 
-        // --- FILE DRAG & DROP & SELECT ---
-        function handleDragOver(e) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('border-pink-500', 'bg-pink-500/5'); }
-        function handleDragLeave(e) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('border-pink-500', 'bg-pink-500/5'); }
-        function handleDrop(e) {
-            e.preventDefault(); e.stopPropagation();
-            e.currentTarget.classList.remove('border-pink-500', 'bg-pink-500/5');
-            const files = e.dataTransfer.files;
-            if (files.length > 0 && files[0].type.startsWith('video/')) {
-                processVideoBlob(files[0], files[0].name);
-            } else {
-                showToast('Please drop a valid video file.', 'error');
-            }
-        }
-        function handleFileSelected(input) {
-            if (input.files.length > 0) {
-                processVideoBlob(input.files[0], input.files[0].name);
-            }
-        }
+// ---- COMMENTS ----
+function openComments(videoId) {
+  const v = feedVideos.find((x) => x.id === videoId);
+  if (!v) return;
+  const old = $('comments-modal'); if (old) old.remove();
+  const modal = document.createElement('div');
+  modal.id = 'comments-modal';
+  modal.className = 'fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4';
+  const list = v.comments.map((c) => `
+    <div class="flex items-start gap-3 py-2.5 border-b border-slate-800/50">
+      <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center font-bold text-xs text-pink-400 shrink-0">${escapeHtml(c.author.charAt(0).toUpperCase())}</div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between"><span class="text-xs font-semibold text-slate-300">@${escapeHtml(c.author)}</span>
+        <span class="text-[10px] text-slate-500">${new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div>
+        <p class="text-xs text-slate-200 mt-1">${escapeHtml(c.text)}</p>
+      </div>
+    </div>`).join('') || '<div class="text-center py-8 text-slate-500 text-xs">No comments yet. Be the first!</div>';
+  modal.innerHTML = `
+    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl flex flex-col h-[70vh] sm:h-[500px]">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
+        <h3 class="text-sm font-bold text-white">${v.comments.length} Comments</h3>
+        <button onclick="$('comments-modal').remove()" class="w-7 h-7 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-xs"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="flex-1 overflow-y-auto no-scrollbar pr-1">${list}</div>
+      <form onsubmit="postComment(event, '${videoId}')" class="mt-3 pt-3 border-t border-slate-800 flex gap-2">
+        <input type="text" id="comment-input" required placeholder="Add a comment..." class="flex-1 px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-pink-500">
+        <button type="submit" class="px-4 py-2.5 bg-pink-500 text-white font-semibold rounded-xl text-xs">Post</button>
+      </form>
+    </div>`;
+  document.body.appendChild(modal);
+}
+async function postComment(e, videoId) {
+  e.preventDefault();
+  const text = $('comment-input').value.trim();
+  if (!text) return;
+  try {
+    const updated = await api('/api/videos/' + videoId + '/comments', jsonPost({ text }));
+    const i = feedVideos.findIndex((x) => x.id === videoId);
+    if (i > -1) feedVideos[i] = updated;
+    openComments(videoId);
+    loadFeed();
+  } catch (err) { showToast(err.message, 'error'); }
+}
 
-        function processVideoBlob(blob, filename) {
-            activeVideoBlob = blob;
-            document.getElementById('section-file').classList.add('hidden');
-            document.getElementById('section-record').classList.add('hidden');
-            document.getElementById('section-details').classList.remove('hidden');
-            
-            const previewVideo = document.getElementById('selected-video-preview');
-            previewVideo.src = URL.createObjectURL(blob);
-            document.getElementById('selected-filename').innerText = filename;
-        }
-
-        function resetSelectedVideo() {
-            activeVideoBlob = null;
-            document.getElementById('video-caption-input').value = '';
-            document.getElementById('section-details').classList.add('hidden');
-            document.getElementById('section-file').classList.remove('hidden');
-            if (document.getElementById('tab-record-btn').classList.contains('bg-slate-800')) {
-                switchUploadTab('record');
-            }
-        }
-
-        // --- WEBCAM RECORDING ---
-        async function startWebcam() {
-            try {
-                webcamStream = await navigator.mediaDevices.getUserMedia({ video: { width: 720, height: 1280 }, audio: true });
-                const videoEl = document.getElementById('webcam-preview');
-                videoEl.srcObject = webcamStream;
-                document.getElementById('start-cam-btn').classList.add('hidden');
-                document.getElementById('rec-btn').disabled = false;
-            } catch (err) {
-                showToast('Unable to access webcam/microphone.', 'error');
-            }
-        }
-
-        function stopWebcam() {
-            if (webcamStream) {
-                webcamStream.getTracks().forEach(track => track.stop());
-                webcamStream = null;
-            }
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.stop();
-            }
-            clearInterval(recordingInterval);
-            document.getElementById('start-cam-btn').classList.remove('hidden');
-            document.getElementById('rec-btn').disabled = true;
-            document.getElementById('rec-btn').innerHTML = '<i class="fa-solid fa-circle mr-1"></i> Start Recording';
-            document.getElementById('recording-timer').classList.add('hidden');
-        }
-
-        function toggleRecording() {
-            const recBtn = document.getElementById('rec-btn');
-            if (!mediaRecorder || mediaRecorder.state === 'inactive') {
-                recordedChunks = [];
-                try {
-                    mediaRecorder = new MediaRecorder(webcamStream, { mimeType: 'video/webm;codecs=vp8,opus' });
-                } catch (e) {
-                    try { mediaRecorder = new MediaRecorder(webcamStream, { mimeType: 'video/webm' }); }
-                    catch (err) { mediaRecorder = new MediaRecorder(webcamStream); }
-                }
-
-                mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
-                mediaRecorder.onstop = () => {
-                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                    processVideoBlob(blob, 'webcam_recording.webm');
-                    stopWebcam();
-                };
-
-                mediaRecorder.start();
-                recBtn.innerHTML = '<i class="fa-solid fa-stop mr-1"></i> Stop Recording';
-                recBtn.className = 'px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded-xl transition-colors';
-                
-                recordingSeconds = 0;
-                document.getElementById('recording-timer').classList.remove('hidden');
-                document.getElementById('timer-display').innerText = '00:00';
-                recordingInterval = setInterval(() => {
-                    recordingSeconds++;
-                    const m = String(Math.floor(recordingSeconds / 60)).padStart(2, '0');
-                    const s = String(recordingSeconds % 60).padStart(2, '0');
-                    document.getElementById('timer-display').innerText = `${m}:${s}`;
-                }, 1000);
-
-            } else {
-                mediaRecorder.stop();
-                clearInterval(recordingInterval);
-            }
-        }
-
-        // --- PUBLISH VIDEO ---
-        async function publishVideo() {
-            if (!activeVideoBlob) return;
-            const caption = document.getElementById('video-caption-input').value.trim() || 'No caption';
-            const btn = document.getElementById('publish-btn');
-            btn.disabled = true;
-            btn.innerText = 'Publishing...';
-
-            const videoRecord = {
-                author: currentUser,
-                caption: caption,
-                blob: activeVideoBlob,
-                likes: 0,
-                likedBy: [],
-                comments: [],
-                createdAt: new Date().toISOString()
-            };
-
-            const tx = db.transaction(STORE_VIDEOS, 'readwrite');
-            const store = tx.objectStore(STORE_VIDEOS);
-            store.add(videoRecord);
-
-            tx.oncomplete = () => {
-                showToast('Video published successfully!');
-                btn.disabled = false;
-                btn.innerText = 'Publish Video';
-                closeUploadModal();
-                loadFeed();
-            };
-
-            tx.onerror = () => {
-                showToast('Failed to publish video.', 'error');
-                btn.disabled = false;
-                btn.innerText = 'Publish Video';
-            };
-        }
-
-        // --- FEED RENDERING & INTERACTIONS ---
-        async function loadFeed() {
-            const container = document.getElementById('feed-container');
-            const emptyState = document.getElementById('empty-feed');
-            container.innerHTML = '';
-
-            const tx = db.transaction(STORE_VIDEOS, 'readonly');
-            const store = tx.objectStore(STORE_VIDEOS);
-            const request = store.getAll();
-
-            request.onsuccess = (e) => {
-                const videos = e.target.result.reverse(); // Newest first
-                if (videos.length === 0) {
-                    emptyState.classList.remove('hidden');
-                    return;
-                }
-                emptyState.classList.add('hidden');
-
-                videos.forEach((video) => {
-                    const videoUrl = URL.createObjectURL(video.blob);
-                    const isLiked = video.likedBy && video.likedBy.includes(currentUser);
-
-                    const card = document.createElement('div');
-                    card.className = 'w-full h-full snap-start relative bg-black flex items-center justify-center overflow-hidden';
-                    card.innerHTML = `
-                        <video src="${videoUrl}" loop playsinline class="w-full h-full object-cover cursor-pointer" onclick="togglePlayPause(this)"></video>
-                        
-                        <!-- Video Overlay Gradients -->
-                        <div class="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/60 to-transparent pointer-events-none"></div>
-                        <div class="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none"></div>
-
-                        <!-- Right Sidebar Action Buttons -->
-                        <div class="absolute right-4 bottom-24 flex flex-col items-center gap-5 z-20">
-                            <!-- Author Avatar -->
-                            <div class="relative">
-                                <div class="w-11 h-11 rounded-full bg-gradient-to-tr from-pink-500 to-cyan-400 p-0.5 flex items-center justify-center shadow-lg">
-                                    <div class="w-full h-full bg-slate-900 rounded-full flex items-center justify-center font-bold text-xs text-white">
-                                        ${video.author.charAt(0).toUpperCase()}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Like Button -->
-                            <button onclick="toggleLike(${video.id})" class="flex flex-col items-center gap-1 group">
-                                <div class="w-11 h-11 rounded-full bg-slate-900/60 backdrop-blur-md flex items-center justify-center text-xl transition-transform transform active:scale-125 ${isLiked ? 'text-pink-500' : 'text-white hover:bg-slate-800/80'}">
-                                    <i class="fa-${isLiked ? 'solid' : 'regular'} fa-heart"></i>
-                                </div>
-                                <span class="text-xs font-semibold text-white drop-shadow">${video.likes || 0}</span>
-                            </button>
-
-                            <!-- Comment Button -->
-                            <button onclick="openComments(${video.id})" class="flex flex-col items-center gap-1 group">
-                                <div class="w-11 h-11 rounded-full bg-slate-900/60 backdrop-blur-md flex items-center justify-center text-lg text-white hover:bg-slate-800/80 transition-transform transform active:scale-125">
-                                    <i class="fa-solid fa-comment-dots"></i>
-                                </div>
-                                <span class="text-xs font-semibold text-white drop-shadow">${(video.comments || []).length}</span>
-                            </button>
-
-                            <!-- Share Button -->
-                            <button onclick="shareVideo(${video.id})" class="flex flex-col items-center gap-1 group">
-                                <div class="w-11 h-11 rounded-full bg-slate-900/60 backdrop-blur-md flex items-center justify-center text-lg text-white hover:bg-slate-800/80 transition-transform transform active:scale-125">
-                                    <i class="fa-solid fa-share"></i>
-                                </div>
-                                <span class="text-xs font-semibold text-white drop-shadow">Share</span>
-                            </button>
-                        </div>
-
-                        <!-- Bottom Metadata Overlay -->
-                        <div class="absolute left-4 bottom-6 right-20 z-20 pointer-events-auto">
-                            <h4 class="font-bold text-white text-sm drop-shadow mb-1">@${video.author.split('@')[0]}</h4>
-                            <p class="text-xs text-slate-200 drop-shadow line-clamp-2 leading-relaxed">${escapeHtml(video.caption)}</p>
-                        </div>
-                    `;
-                    container.appendChild(card);
-                });
-
-                setupIntersectionObserver();
-            };
-        }
-
-        function escapeHtml(str) {
-            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-        }
-
-        function togglePlayPause(videoEl) {
-            if (videoEl.paused) {
-                videoEl.play();
-            } else {
-                videoEl.pause();
-            }
-        }
-
-        // --- INTERSECTION OBSERVER FOR AUTO PLAY/PAUSE ---
-        function setupIntersectionObserver() {
-            const container = document.getElementById('feed-container');
-            const videos = container.querySelectorAll('video');
-
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    const video = entry.target;
-                    if (entry.isIntersecting) {
-                        video.play().catch(() => {});
-                    } else {
-                        video.pause();
-                        video.currentTime = 0;
-                    }
-                });
-            }, { threshold: 0.6 });
-
-            videos.forEach(v => observer.observe(v));
-        }
-
-        // --- LIKES & COMMENTS LOGIC ---
-        function toggleLike(videoId) {
-            const tx = db.transaction(STORE_VIDEOS, 'readwrite');
-            const store = tx.objectStore(STORE_VIDEOS);
-            store.get(videoId).onsuccess = (e) => {
-                const video = e.target.result;
-                if (!video) return;
-
-                if (!video.likedBy) video.likedBy = [];
-                const index = video.likedBy.indexOf(currentUser);
-
-                if (index > -1) {
-                    video.likedBy.splice(index, 1);
-                    video.likes = Math.max(0, video.likes - 1);
-                } else {
-                    video.likedBy.push(currentUser);
-                    video.likes = (video.likes || 0) + 1;
-                }
-
-                store.put(video).onsuccess = () => {
-                    loadFeed();
-                };
-            };
-        }
-
-        function shareVideo(videoId) {
-            const dummyUrl = window.location.href.split('#')[0] + '#video-' + videoId;
-            document.execCommand ? copyTextLegacy(dummyUrl) : navigator.clipboard.writeText(dummyUrl);
-            showToast('Video link copied to clipboard!');
-        }
-
-        function copyTextLegacy(text) {
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-        }
-
-        function openComments(videoId) {
-            const tx = db.transaction(STORE_VIDEOS, 'readonly');
-            const store = tx.objectStore(STORE_VIDEOS);
-            store.get(videoId).onsuccess = (e) => {
-                const video = e.target.result;
-                if (!video) return;
-
-                // Create modal for comments
-                const modalId = 'comments-modal';
-                let modal = document.getElementById(modalId);
-                if (modal) modal.remove();
-
-                modal = document.createElement('div');
-                modal.id = modalId;
-                modal.className = 'fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4';
-                
-                let commentsHtml = (video.comments || []).map(c => `
-                    <div class="flex items-start gap-3 py-2.5 border-b border-slate-800/50">
-                        <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center font-bold text-xs text-pink-400 shrink-0">
-                            ${c.author.charAt(0).toUpperCase()}
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs font-semibold text-slate-300">@${c.author.split('@')[0]}</span>
-                                <span class="text-[10px] text-slate-500">${new Date(c.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                            </div>
-                            <p class="text-xs text-slate-200 mt-1 leading-relaxed">${escapeHtml(c.text)}</p>
-                        </div>
-                    </div>
-                `).join('');
-
-                if (!commentsHtml) {
-                    commentsHtml = `<div class="text-center py-8 text-slate-500 text-xs">No comments yet. Be the first to comment!</div>`;
-                }
-
-                modal.innerHTML = `
-                    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl flex flex-col h-[70vh] sm:h-[500px]">
-                        <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
-                            <h3 class="text-sm font-bold text-white">${(video.comments || []).length} Comments</h3>
-                            <button onclick="document.getElementById('${modalId}').remove()" class="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs transition-colors">
-                                <i class="fa-solid fa-xmark"></i>
-                            </button>
-                        </div>
-
-                        <div class="flex-1 overflow-y-auto no-scrollbar space-y-1 pr-1">
-                            ${commentsHtml}
-                        </div>
-
-                        <form onsubmit="postComment(event, ${videoId})" class="mt-3 pt-3 border-t border-slate-800 flex gap-2">
-                            <input type="text" id="comment-input" required placeholder="Add a comment..."
-                                class="flex-1 px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500">
-                            <button type="submit" class="px-4 py-2.5 bg-pink-500 hover:bg-pink-600 text-white font-semibold rounded-xl text-xs transition-colors">
-                                Post
-                            </button>
-                        </form>
-                    </div>
-                `;
-                document.body.appendChild(modal);
-            };
-        }
-
-        function postComment(e, videoId) {
-            e.preventDefault();
-            const input = document.getElementById('comment-input');
-            const text = input.value.trim();
-            if (!text) return;
-
-            const tx = db.transaction(STORE_VIDEOS, 'readwrite');
-            const store = tx.objectStore(STORE_VIDEOS);
-            store.get(videoId).onsuccess = (e) => {
-                const video = e.target.result;
-                if (!video) return;
-
-                if (!video.comments) video.comments = [];
-                video.comments.push({
-                    author: currentUser,
-                    text: text,
-                    createdAt: new Date().toISOString()
-                });
-
-                store.put(video).onsuccess = () => {
-                    input.value = '';
-                    openComments(videoId);
-                    loadFeed();
-                    showToast('Comment posted!');
-                };
-            };
-        }
-
-        // --- APP INITIALIZATION ---
-        window.addEventListener('DOMContentLoaded', async () => {
-            try {
-                await initDB();
-                const savedUser = localStorage.getItem('jaxtok_user');
-                if (savedUser) {
-                    const tx = db.transaction(STORE_USERS, 'readonly');
-                    const store = tx.objectStore(STORE_USERS);
-                    store.get(savedUser).onsuccess = (e) => {
-                        if (e.target.result) {
-                            loginSuccess(savedUser);
-                        } else {
-                            localStorage.removeItem('jaxtok_user');
-                        }
-                    };
-                }
-            } catch (err) {
-                showToast('Failed to initialize local database.', 'error');
-            }
-        });
-    </script>
+// ---- STARTUP ----
+window.addEventListener('DOMContentLoaded', async () => {
+  if (!token) return;
+  try { loginSuccess((await api('/api/me')).username); }
+  catch (err) { token = null; localStorage.removeItem('jaxtok_token'); }
+});
+</script>
 </body>
 </html>
