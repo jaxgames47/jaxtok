@@ -46,7 +46,7 @@ const inp = 'w-full px-4 py-3 rounded-xl bg-white/10 text-sm outline-none focus:
 function authView() {
   $('root').innerHTML = `<div class="h-full flex items-center justify-center p-6 bg-gradient-to-b from-zinc-900 to-black fi">
   <form onsubmit="auth(event)" class="w-full max-w-sm space-y-3 text-center">
-    <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-pink-500 to-cyan-400 flex items-center justify-center text-2xl"><i class="fa-solid fa-bolt"></i></div>
+    <img src="${uri(LOGO)}" class="w-20 h-20 mx-auto" alt="JaxTok">
     <h1 class="text-2xl font-extrabold">${signup ? 'Join JaxTok' : 'Welcome to JaxTok'}</h1>
     <input id="em" type="email" required placeholder="Email" class="${inp}">
     <input id="pw" type="password" required minlength="6" placeholder="Password (6+ characters)" class="${inp}">
@@ -67,6 +67,7 @@ function logout() { token = null; ME = null; localStorage.removeItem('jt'); clos
 const NAV = [['home', 'house', 'Home'], ['search', 'magnifying-glass', 'Discover'], ['upload', 'plus', ''], ['inbox', 'paper-plane', 'Inbox'], ['me', 'user', 'Profile']];
 function boot() {
   theme();
+  api('/api/users/jaxtok').then((u) => { ME.followsJt = u.isFollowing; }).catch(() => {});
   $('root').innerHTML = `<div id="view" class="flex-1 relative overflow-hidden"></div>
   <nav class="shrink-0 h-14 bg-black border-t border-white/10 flex items-center justify-around text-[10px] pb-[env(safe-area-inset-bottom)] box-content">
   ${NAV.map(([t, i, l]) => t == 'upload'
@@ -101,7 +102,7 @@ function card(v) {
   <video src="${API + v.url}" crossorigin="anonymous" loop playsinline preload="metadata" class="h-full w-full object-contain" onclick="this.paused?this.play():this.pause()"></video>
   <div class="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black/80 to-transparent pointer-events-none"></div>
   <div class="absolute right-3 bottom-8 flex flex-col items-center gap-4 z-10">
-    <div class="relative mb-2"><button onclick="openUser('${v.author}')" class="w-12 h-12 rounded-full bg-zinc-800 border-2 border-white text-2xl flex items-center justify-center">${v.avatar}</button>
+    <div class="relative mb-2"><button onclick="openUser('${v.author}')" class="w-12 h-12 rounded-full border-2 border-white overflow-hidden">${avi(v.avatar, v.author, 'w-full h-full text-lg')}</button>
     ${v.author != ME.username ? `<button data-f="${v.author}" onclick="follow('${v.author}')" class="plus absolute -bottom-2 left-3.5 w-5 h-5 rounded-full bg-[var(--a)] text-xs flex items-center justify-center"><i class="fa-solid fa-plus"></i></button>` : ''}</div>
     <button data-lk="${v.id}" onclick="like('${v.id}')" class="flex flex-col items-center gap-1">${likeIn(v)}</button>
     <button onclick="comments('${v.id}')" class="flex flex-col items-center gap-1"><div class="w-12 h-12 rounded-full bg-black/40 flex items-center justify-center text-xl"><i class="fa-solid fa-comment-dots"></i></div><span data-cc="${v.id}" class="text-xs font-semibold">${v.comments.length}</span></button>
@@ -127,7 +128,7 @@ async function homeView() {
   try {
     const l = await api('/api/videos?tab=' + S.feed), f = $('feed');
     if (!f) return;
-    f.innerHTML = l.map(card).join('') || `<div class="h-full flex flex-col items-center justify-center text-center p-8 text-white/60 text-sm"><i class="fa-solid fa-film text-4xl mb-3"></i>${S.feed == 'following' ? 'Follow some creators to fill this feed.' : 'No videos yet. Be the first to post!'}</div>`;
+    f.innerHTML = withAds(l) || `<div class="h-full flex flex-col items-center justify-center text-center p-8 text-white/60 text-sm"><i class="fa-solid fa-film text-4xl mb-3"></i>${S.feed == 'following' ? 'Follow some creators to fill this feed.' : 'No videos yet. Be the first to post!'}</div>`;
     autoplay(f);
   } catch (e) { fail(e); }
 }
@@ -154,7 +155,7 @@ function watch(id) {
 const thumb = (v) => `<div class="aspect-[3/4] bg-zinc-900 relative cursor-pointer" onclick="watch('${v.id}')"><video src="${API + v.url}#t=0.1" muted preload="metadata" class="w-full h-full object-cover pointer-events-none"></video><span class="absolute bottom-1 left-1 text-xs drop-shadow"><i class="fa-solid fa-heart"></i> ${v.likes}</span></div>`;
 
 // ---------- comments / share / stickers ----------
-const cm = (c) => `<div class="flex gap-2"><span class="text-2xl">${c.avatar}</span><div><b class="text-xs text-white/60">@${esc(c.author)}</b>${c.text ? `<p class="text-sm">${esc(c.text)}</p>` : ''}${c.sticker ? `<img src="${API + c.sticker}" class="w-24 mt-1">` : ''}</div></div>`;
+const cm = (c) => `<div class="flex gap-2">${avi(c.avatar, c.author, 'w-8 h-8 text-xs')}<div class="min-w-0"><b class="text-xs text-white/60">@${esc(c.author)}</b>${c.text ? `<p class="text-sm">${esc(c.text)}</p>` : ''}${media(c)}</div></div>`;
 function comments(id) {
   const v = V[id];
   sheet(`<div class="p-4 h-[70vh] flex flex-col"><h3 class="text-center text-sm font-bold mb-3">${v.comments.length} comments</h3>
@@ -225,7 +226,7 @@ async function profileView(n) {
     const p = await api('/api/users/' + n), mine = n == ME.username; CUR = p.videos; p.videos.forEach((v) => V[v.id] = v);
     $('view').innerHTML = `<div class="h-full overflow-y-auto ns fi"><div class="p-6 text-center space-y-2 relative">
     ${mine ? `<button onclick="settings()" class="absolute right-4 top-4 text-xl"><i class="fa-solid fa-gear"></i></button>` : `<button onclick="go('home')" class="absolute left-4 top-4 text-xl"><i class="fa-solid fa-chevron-left"></i></button>`}
-    <div class="text-6xl">${p.avatar}</div><b>@${esc(p.username)}</b>
+    <div class="flex justify-center">${avi(p.avatar, p.username, 'w-24 h-24 text-4xl')}</div><b>@${esc(p.username)}</b>
     <div class="flex justify-center gap-8 text-sm">${[['Following', p.following], ['Followers', p.followers], ['Likes', p.likes]].map(([l, c]) => `<div><b>${c}</b><p class="text-white/50 text-xs">${l}</p></div>`).join('')}</div>
     <p class="text-sm text-white/70">${esc(p.bio)}</p>
     ${mine ? `<button onclick="settings()" class="px-6 py-2 rounded-lg bg-white/10 text-sm font-semibold">Edit profile &amp; settings</button>`
@@ -264,7 +265,7 @@ async function doSearch() {
   try {
     const [us, vs] = await Promise.all([api('/api/users?q=' + q), api('/api/videos?q=' + q)]); CUR = vs;
     if (!$('res')) return;
-    $('res').innerHTML = (S.q ? `<div class="space-y-1">${us.map((u) => `<div class="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5"><button onclick="openUser('${u.username}')" class="flex items-center gap-3 flex-1 text-left"><span class="text-3xl">${u.avatar}</span><div><b class="text-sm">@${esc(u.username)}</b><p class="text-xs text-white/50">${u.followers} followers</p></div></button>${u.username != ME.username ? `<button data-f="${u.username}" onclick="follow('${u.username}')" class="px-4 py-1.5 rounded-lg bg-[var(--a)] text-xs font-semibold">${u.isFollowing ? 'Following' : 'Follow'}</button>` : ''}</div>`).join('')}</div>` : '')
+    $('res').innerHTML = (S.q ? `<div class="space-y-1">${us.map((u) => `<div class="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5"><button onclick="openUser('${u.username}')" class="flex items-center gap-3 flex-1 text-left">${avi(u.avatar, u.username, 'w-11 h-11')}<div><b class="text-sm">@${esc(u.username)}</b><p class="text-xs text-white/50">${u.followers} followers</p></div></button>${u.username != ME.username ? `<button data-f="${u.username}" onclick="follow('${u.username}')" class="px-4 py-1.5 rounded-lg bg-[var(--a)] text-xs font-semibold">${u.isFollowing ? 'Following' : 'Follow'}</button>` : ''}</div>`).join('')}</div>` : '')
       + `<p class="text-xs text-white/50">${S.q ? 'Videos' : 'Trending'}</p><div class="grid grid-cols-3 gap-0.5">${vs.map(thumb).join('') || '<p class="col-span-3 text-center text-white/40 text-sm py-10">Nothing found</p>'}</div>`;
   } catch (e) { fail(e); }
 }
@@ -298,10 +299,10 @@ async function inboxView() {
   try {
     const l = await api('/api/inbox');
     $('view').innerHTML = `<div class="h-full overflow-y-auto ns fi"><h2 class="text-xl font-bold p-4 pb-0">Inbox</h2><div class="p-4 flex gap-2"><input id="nm" placeholder="Message a username..." class="${inp}"><button onclick="openChat($('nm').value.trim().toLowerCase())" class="px-4 rounded-xl bg-[var(--a)] text-sm font-semibold">Go</button></div>
-    ${l.map((c) => `<button onclick="openChat('${c.user}')" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5"><span class="text-3xl">${c.avatar}</span><div class="min-w-0"><b class="text-sm">@${esc(c.user)}</b><p class="text-xs text-white/50 truncate">${esc(c.last)}</p></div></button>`).join('') || '<p class="text-center text-white/40 text-sm mt-10">No messages yet</p>'}</div>`;
+    ${l.map((c) => `<button onclick="openChat('${c.user}')" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5">${avi(c.avatar, c.user, 'w-11 h-11')}<div class="min-w-0"><b class="text-sm">@${esc(c.user)}</b><p class="text-xs text-white/50 truncate">${esc(c.last)}</p></div></button>`).join('') || '<p class="text-center text-white/40 text-sm mt-10">No messages yet</p>'}</div>`;
   } catch (e) { fail(e); }
 }
-const bub = (m) => { const me = m.from == ME.username; return `<div class="flex ${me ? 'justify-end' : ''}"><div class="${me ? 'bg-[var(--a)]' : 'bg-white/10'} rounded-2xl px-3 py-2 max-w-[75%] text-sm">${m.text ? esc(m.text) : ''}${m.sticker ? `<img src="${API + m.sticker}" class="w-28">` : ''}</div></div>`; };
+const bub = (m) => { const me = m.from == ME.username; return `<div class="flex ${me ? 'justify-end' : ''}"><div class="${me ? 'bg-[var(--a)]' : 'bg-white/10'} rounded-2xl px-3 py-2 max-w-[75%] text-sm">${m.text ? esc(m.text) : ''}${media(m)}</div></div>`; };
 async function openChat(u) {
   if (!u) return;
   try {
@@ -324,6 +325,168 @@ setInterval(async () => {
     if (m && $('ml')) { const b = $('ml').scrollTop; $('ml').innerHTML = m.map(bub).join(''); $('ml').scrollTop = b; }
   }
 }, 4000);
+
+// ---------- v3: logo, avatars, ads, photo + voice, sticker crop ----------
+const logoIn = (bg, fg) => `<rect width="100" height="100" rx="24" fill="${bg}"/><path d="M62 22v34a18 18 0 0 1-18 18h-6" fill="none" stroke="${fg}" stroke-width="12" stroke-linecap="round"/><path d="M22 28l22 12-22 12z" fill="${fg}"/>`;
+const LOGO = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ec4899"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>${logoIn('url(#g)', '#fff')}</svg>`;
+const uri = (x) => 'data:image/svg+xml,' + encodeURIComponent(x);
+document.head.insertAdjacentHTML('beforeend', `<link rel="icon" href="${uri(LOGO)}">`);
+const avi = (src, n, cls = 'w-10 h-10') => src && src[0] == '/'
+  ? `<img src="${API + src}" class="${cls} rounded-full object-cover shrink-0" alt="">`
+  : `<span class="${cls} rounded-full flex items-center justify-center font-bold bg-gradient-to-tr from-pink-500 to-cyan-400 shrink-0">${esc((n || '?')[0].toUpperCase())}</span>`;
+const stk = (u, c = 'w-24') => /\.(webm|mp4)$/.test(u) ? `<video src="${API + u}" autoplay loop muted playsinline class="${c} rounded-xl"></video>` : `<img src="${API + u}" class="${c}">`;
+const media = (c) => (c.sticker ? `<div class="mt-1">${stk(c.sticker, 'w-28')}</div>` : '') + (c.image ? `<img src="${API + c.image}" class="mt-1 rounded-xl max-h-48 max-w-full">` : '') + (c.audio ? `<audio controls src="${API + c.audio}" class="mt-1 h-9 max-w-full"></audio>` : '');
+
+// ads: an image every 5 videos (every 10 if you follow @jaxtok)
+const adSvg = (i, f) => { const c = [['#ec4899', '#22d3ee'], ['#a78bfa', '#f59e0b'], ['#22c55e', '#22d3ee']][i % 3];
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 640"><defs><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c[0]}"/><stop offset="1" stop-color="${c[1]}"/></linearGradient></defs><rect width="360" height="640" fill="url(#b)"/><g transform="translate(110 130) scale(1.4)">${logoIn('#fff', c[0])}</g><g font-family="system-ui,sans-serif" fill="#fff" text-anchor="middle"><text x="180" y="360" font-size="46" font-weight="800">JaxTok</text><text x="180" y="410" font-size="28" font-weight="700">${f ? 'Thanks for following!' : 'Having fun?'}</text><text x="180" y="450" font-size="17" opacity=".9">${f ? 'You will see fewer ads.' : 'Follow this account for fewer ads.'}</text></g></svg>`; };
+const adCard = (i) => `<section class="h-full w-full snap-start relative bg-black overflow-hidden"><img src="${uri(adSvg(i, ME.followsJt))}" class="w-full h-full object-cover" alt="Ad"><span class="absolute top-14 left-3 text-[10px] bg-black/50 px-2 py-0.5 rounded">Ad</span>${ME.followsJt ? '' : `<button data-f="jaxtok" onclick="follow('jaxtok')" class="absolute bottom-16 left-1/2 -translate-x-1/2 px-8 py-3 rounded-full bg-white text-black font-bold text-sm">Follow</button>`}</section>`;
+function withAds(l) { const n = ME.followsJt ? 10 : 5; let h = '', a = 0; l.forEach((v, i) => { h += card(v); if ((i + 1) % n == 0) h += adCard(a++); }); return h; }
+async function follow(n) {
+  try {
+    const d = await api('/api/users/' + n + '/follow', { method: 'POST' });
+    if (n == 'jaxtok') ME.followsJt = d.following;
+    document.querySelectorAll(`[data-f="${n}"]`).forEach((e) => e.classList.contains('plus') ? e.remove() : e.textContent = d.following ? 'Following' : 'Follow');
+    toast(d.following ? 'Following @' + n : 'Unfollowed @' + n);
+  } catch (e) { fail(e); }
+}
+
+// photo + voice uploads
+async function upImg(i, cb) {
+  const f = i.files[0]; if (!f) return;
+  const fd = new FormData(); fd.append('media', f, f.name);
+  try { cb((await api('/api/media', { method: 'POST', body: fd })).url); } catch (e) { fail(e); }
+}
+let _rec = null;
+async function voice(btn, cb) {
+  if (_rec) { _rec.stop(); return; }
+  try {
+    const st = await navigator.mediaDevices.getUserMedia({ audio: true }), ch = [], r = new MediaRecorder(st);
+    _rec = r; btn.classList.add('text-red-500'); btn.innerHTML = '<i class="fa-solid fa-stop"></i>';
+    r.ondataavailable = (e) => ch.push(e.data);
+    r.onstop = async () => {
+      st.getTracks().forEach((t) => t.stop()); _rec = null; btn.classList.remove('text-red-500'); btn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+      const fd = new FormData(); fd.append('media', new Blob(ch, { type: (r.mimeType || 'audio/webm').split(';')[0] }), 'voice');
+      try { cb((await api('/api/media', { method: 'POST', body: fd })).url); } catch (e) { fail(e); }
+    };
+    r.start(); setTimeout(() => _rec === r && r.stop(), 60000);
+  } catch (e) { toast('Microphone not available', 1); }
+}
+const tools = (onSticker, onImg, onVoice) => `<button onclick="${onSticker}" class="text-xl px-1.5"><i class="fa-solid fa-note-sticky"></i></button>
+  <label class="text-xl px-1.5 cursor-pointer"><i class="fa-regular fa-image"></i><input type="file" accept="image/*" class="hidden" onchange="upImg(this,${onImg})"></label>
+  <button onclick="voice(this,${onVoice})" class="text-xl px-1.5"><i class="fa-solid fa-microphone"></i></button>`;
+
+function comments(id) {
+  const v = V[id];
+  sheet(`<div class="p-4 h-[70vh] flex flex-col"><h3 class="text-center text-sm font-bold mb-3">${v.comments.length} comments</h3>
+  <div class="flex-1 overflow-y-auto ns space-y-3">${v.comments.map(cm).join('') || '<p class="text-center text-white/40 text-sm mt-8">No comments yet</p>'}</div>
+  <div class="flex items-center gap-1 pt-3">${tools(`pickSticker((s)=>postC('${id}','',s),()=>comments('${id}'))`, `(u)=>postC('${id}','',null,{image:u})`, `(u)=>postC('${id}','',null,{audio:u})`)}
+  <input id="ci" onkeydown="if(event.key=='Enter')postC('${id}')" placeholder="Add comment..." class="${inp}"><button onclick="postC('${id}')" class="px-4 py-3 rounded-xl bg-[var(--a)] text-sm font-semibold">Post</button></div></div>`);
+}
+async function postC(id, t, s, x) {
+  t = t || ($('ci') ? $('ci').value.trim() : '');
+  try {
+    V[id] = await api('/api/videos/' + id + '/comments', J({ text: t, sticker: s && s.id, ...(x || {}) }));
+    document.querySelectorAll(`[data-cc="${id}"]`).forEach((e) => e.textContent = V[id].comments.length);
+    comments(id);
+  } catch (e) { fail(e); }
+}
+async function openChat(u) {
+  if (!u) return;
+  try {
+    const m = await api('/api/messages/' + u); closeSheet(); if ($('ov')) $('ov').remove();
+    S.tab = 'inbox'; S.chat = u; hl('inbox');
+    $('view').innerHTML = `<div class="h-full flex flex-col fi"><div class="p-3 flex items-center gap-3 border-b border-white/10"><button onclick="go('inbox')"><i class="fa-solid fa-chevron-left"></i></button><b>@${esc(u)}</b></div>
+    <div id="ml" class="flex-1 overflow-y-auto ns p-3 space-y-2">${m.map(bub).join('')}</div>
+    <div class="p-3 flex items-center gap-1 border-t border-white/10">${tools("pickSticker((s)=>sendM('',s))", "(u)=>sendM('',null,{image:u})", "(u)=>sendM('',null,{audio:u})")}<input id="mi" onkeydown="if(event.key=='Enter')sendM()" placeholder="Message..." class="${inp}"><button onclick="sendM()" class="px-4 py-3 rounded-xl bg-[var(--a)] text-sm font-semibold">Send</button></div></div>`;
+    $('ml').scrollTop = 1e9;
+  } catch (e) { fail(e); }
+}
+async function sendM(t, s, x) {
+  t = t || ($('mi') ? $('mi').value.trim() : '');
+  if (!t && !s && !x) return;
+  try { await api('/api/messages/' + S.chat, J({ text: t, sticker: s && s.id, ...(x || {}) })); openChat(S.chat); } catch (e) { fail(e); }
+}
+async function pickSticker(cb, back) {
+  _cb = cb;
+  try {
+    const l = await api('/api/stickers');
+    sheet(`<div class="p-4"><div class="flex items-center justify-between mb-3"><h3 class="font-bold text-sm">Stickers</h3><button onclick="${back ? 'closeSheet();(' + back + ')()' : 'closeSheet()'}" class="text-white/60 text-sm">Back</button></div>
+    <div class="grid grid-cols-3 gap-3">${l.map((s) => `<button onclick="_cb(${esc(JSON.stringify(s))})" class="aspect-square bg-white/5 rounded-xl p-1 flex items-center justify-center">${stk(s.url, 'max-w-full max-h-full')}</button>`).join('')}</div>
+    ${l.length ? '' : '<p class="text-center text-white/40 text-sm py-8">No stickers yet. Tap Share, then Create sticker, on any video.</p>'}</div>`);
+  } catch (e) { fail(e); }
+}
+
+// sticker creator: crop ratio + still / 2.5s / 5s clip
+let SC = { r: 1, len: 0 };
+function mkSticker(id) {
+  _sv = document.querySelector(`[data-v="${id}"] video`); _sv.pause(); SC = { r: 1, len: 0 };
+  sheet(`<div class="p-5 space-y-3 text-center"><h3 class="font-bold text-sm">Create sticker</h3>
+  <canvas id="sc" class="mx-auto rounded-2xl max-h-[38vh] max-w-full bg-zinc-800"></canvas>
+  <div class="flex justify-center gap-2">${[['16:9', 16 / 9], ['1:1', 1], ['4:3', 4 / 3]].map(([l, r]) => `<button data-r="${r}" onclick="SC.r=${r};drawS();optHl()" class="px-3 py-1.5 rounded-lg bg-white/10 text-xs">${l}</button>`).join('')}</div>
+  <div class="flex justify-center gap-2">${[['Still', 0], ['2.5s clip', 2.5], ['5s clip', 5]].map(([l, n]) => `<button data-l="${n}" onclick="SC.len=${n};optHl()" class="px-3 py-1.5 rounded-lg bg-white/10 text-xs">${l}</button>`).join('')}</div>
+  <input id="st" oninput="drawS()" maxlength="24" placeholder="Add text (optional)" class="${inp}">
+  <button id="sv" onclick="saveSticker()" class="w-full py-3 rounded-xl font-semibold bg-[var(--a)]">Save sticker</button></div>`);
+  optHl(); drawS();
+}
+function optHl() {
+  document.querySelectorAll('#sheet [data-r]').forEach((b) => b.style.outline = +b.dataset.r === SC.r ? '2px solid var(--a)' : '');
+  document.querySelectorAll('#sheet [data-l]').forEach((b) => b.style.outline = +b.dataset.l === SC.len ? '2px solid var(--a)' : '');
+}
+function drawS() {
+  const c = $('sc'); if (!c) return;
+  const W = 320, H = Math.round(W / SC.r); if (c.width != W || c.height != H) { c.width = W; c.height = H; }
+  const x = c.getContext('2d'), t = $('st').value, vw = _sv.videoWidth || W, vh = _sv.videoHeight || W, k = Math.max(W / vw, H / vh);
+  x.clearRect(0, 0, W, H); x.save();
+  if (x.roundRect) { x.beginPath(); x.roundRect(0, 0, W, H, 28); x.clip(); }
+  x.drawImage(_sv, (W - vw * k) / 2, (H - vh * k) / 2, vw * k, vh * k); x.restore();
+  if (t) { x.font = '800 34px system-ui'; x.textAlign = 'center'; x.lineWidth = 8; x.lineJoin = 'round'; x.strokeStyle = '#000'; x.strokeText(t, W / 2, H - 24, W - 20); x.fillStyle = '#fff'; x.fillText(t, W / 2, H - 24, W - 20); }
+}
+async function saveSticker() {
+  const c = $('sc'), b = $('sv'), name = $('st').value || 'sticker';
+  const send = async (blob, fn) => {
+    const fd = new FormData(); fd.append('name', name); fd.append('sticker', blob, fn);
+    try { await api('/api/stickers', { method: 'POST', body: fd }); closeSheet(); toast('Sticker saved!'); } catch (e) { fail(e); b.disabled = false; b.textContent = 'Save sticker'; }
+  };
+  b.disabled = true;
+  if (!SC.len) { c.toBlob((bl) => bl ? send(bl, 's.png') : toast('Could not capture this frame', 1), 'image/png'); return; }
+  if (!c.captureStream || !window.MediaRecorder) { toast('Clip stickers are not supported in this browser', 1); b.disabled = false; return; }
+  b.textContent = 'Recording ' + SC.len + 's...';
+  const ch = [], rec = new MediaRecorder(c.captureStream(30));
+  rec.ondataavailable = (e) => e.data.size && ch.push(e.data);
+  rec.onstop = () => send(new Blob(ch, { type: (rec.mimeType || 'video/webm').split(';')[0] }), 'clip');
+  const t0 = performance.now(); _sv.muted = true; rec.start(); try { await _sv.play(); } catch (e) {}
+  (function loop() { drawS(); if (performance.now() - t0 < SC.len * 1000) requestAnimationFrame(loop); else { rec.stop(); _sv.pause(); } })();
+}
+
+// settings: photo upload / default picture
+function settings() {
+  const s = ME.settings;
+  sheet(`<div class="p-5 space-y-4"><h3 class="font-bold text-center">Settings</h3>
+  <div class="flex items-center gap-4"><div id="pf">${avi(ME.avatar, ME.username, 'w-16 h-16 text-2xl')}</div><div class="flex flex-col gap-2">
+    <label class="px-4 py-2 rounded-lg bg-white/10 text-xs font-semibold text-center cursor-pointer">Upload photo<input type="file" accept="image/*" class="hidden" onchange="setAvatar(this)"></label>
+    <button onclick="clearAvatar()" class="px-4 py-2 rounded-lg bg-white/10 text-xs font-semibold">Use default picture</button></div></div>
+  <div><p class="text-xs text-white/50 mb-2">Bio</p><textarea id="bio" rows="2" maxlength="160" class="${inp} resize-none">${esc(ME.bio)}</textarea></div>
+  <div><p class="text-xs text-white/50 mb-2">Accent color</p><div id="ac" data-v="${s.accent || '#ec4899'}" class="flex gap-3">${COLORS.map((c) => `<button onclick="this.parentNode.dataset.v='${c}';document.documentElement.style.setProperty('--a','${c}');[...this.parentNode.children].forEach(b=>b.style.outline='');this.style.outline='2px solid #fff'" class="w-8 h-8 rounded-full" style="background:${c};${c == (s.accent || '#ec4899') ? 'outline:2px solid #fff' : ''}"></button>`).join('')}</div></div>
+  <label class="flex justify-between text-sm"><span>Play videos with sound</span><input id="snd" type="checkbox" ${s.sound ? 'checked' : ''} class="accent-[var(--a)] w-5 h-5"></label>
+  <label class="flex justify-between text-sm"><span>Autoplay videos</span><input id="aut" type="checkbox" ${s.autoplay !== false ? 'checked' : ''} class="accent-[var(--a)] w-5 h-5"></label>
+  <button onclick="saveSettings()" class="w-full py-3 rounded-xl font-semibold bg-[var(--a)]">Save</button>
+  <button onclick="logout()" class="w-full py-3 rounded-xl font-semibold bg-white/10 text-red-400">Sign out</button></div>`);
+}
+const pfUpdate = (d) => { ME.avatar = d.avatar; if ($('pf')) $('pf').innerHTML = avi(ME.avatar, ME.username, 'w-16 h-16 text-2xl'); };
+async function setAvatar(i) {
+  const f = i.files[0]; if (!f) return;
+  const fd = new FormData(); fd.append('media', f, f.name);
+  try { pfUpdate(await api('/api/me/avatar', { method: 'POST', body: fd })); toast('Photo updated'); } catch (e) { fail(e); }
+}
+async function clearAvatar() { try { pfUpdate(await api('/api/me', J({ avatar: '', settings: ME.settings }, 'PUT'))); } catch (e) { fail(e); } }
+async function saveSettings() {
+  try {
+    const f = ME.followsJt;
+    ME = await api('/api/me', J({ bio: $('bio').value, settings: { accent: $('ac').dataset.v, sound: $('snd').checked, autoplay: $('aut').checked } }, 'PUT'));
+    ME.followsJt = f; theme(); closeSheet(); toast('Saved'); profileView();
+  } catch (e) { fail(e); }
+}
 
 // ---------- start ----------
 if (token) api('/api/me').then((d) => { ME = d; boot(); }).catch(() => { token = null; authView(); }); else authView();
