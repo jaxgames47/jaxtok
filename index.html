@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-black">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JaxTok</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root{--a:#ec4899}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none}
+.ns::-webkit-scrollbar{display:none}.ns{scrollbar-width:none}
+@keyframes pop{0%{transform:scale(0);opacity:1}50%{transform:scale(1.4)}100%{transform:scale(1) translateY(-50px);opacity:0}}
+@keyframes bnc{0%,100%{transform:scale(1)}40%{transform:scale(1.4)}}
+@keyframes up{from{transform:translateY(100%)}to{transform:none}}
+@keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.hp{animation:pop .8s ease-out forwards}.bnc{animation:bnc .35s}.sheet{animation:up .3s cubic-bezier(.2,.9,.3,1)}.fi{animation:fade .25s ease-out}
+button:active{transform:scale(.95)}button{transition:transform .1s}
+</style>
+</head>
+<body class="h-full text-white overflow-hidden">
+<div id="toasts" class="fixed top-4 inset-x-0 z-[60] flex flex-col items-center gap-2 pointer-events-none"></div>
+<div id="root" class="h-full flex flex-col"></div>
+<script>
+const API = ''; // leave empty when the server also serves this page
+let token = localStorage.getItem('jt'), ME = null, S = { tab: 'home', feed: 'foryou', q: '', chat: null }, V = {}, CUR = [], signup = false, _cb = null, _sv = null;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const J = (b, m = 'POST') => ({ method: m, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
+async function api(p, o = {}) {
+  o.headers = { ...(o.headers || {}), ...(token ? { Authorization: 'Bearer ' + token } : {}) };
+  const r = await fetch(API + p, o), d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Request failed');
+  return d;
+}
+function toast(m, err) {
+  const t = document.createElement('div');
+  t.className = 'fi px-4 py-2 rounded-full text-xs font-semibold shadow-xl ' + (err ? 'bg-red-600' : 'bg-zinc-800');
+  t.textContent = m; $('toasts').appendChild(t); setTimeout(() => t.remove(), 3000);
+}
+const fail = (e) => toast(e.message, 1);
+const theme = () => document.documentElement.style.setProperty('--a', ME.settings.accent || '#ec4899');
+const inp = 'w-full px-4 py-3 rounded-xl bg-white/10 text-sm outline-none focus:ring-1 focus:ring-[var(--a)]';
+
+// ---------- auth ----------
+function authView() {
+  $('root').innerHTML = `<div class="h-full flex items-center justify-center p-6 bg-gradient-to-b from-zinc-900 to-black fi">
+  <form onsubmit="auth(event)" class="w-full max-w-sm space-y-3 text-center">
+    <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-pink-500 to-cyan-400 flex items-center justify-center text-2xl"><i class="fa-solid fa-bolt"></i></div>
+    <h1 class="text-2xl font-extrabold">${signup ? 'Join JaxTok' : 'Welcome to JaxTok'}</h1>
+    <input id="em" type="email" required placeholder="Email" class="${inp}">
+    <input id="pw" type="password" required minlength="6" placeholder="Password (6+ characters)" class="${inp}">
+    <button class="w-full py-3 rounded-xl font-semibold bg-[var(--a)]">${signup ? 'Create account' : 'Sign in'}</button>
+    <button type="button" onclick="signup=!signup;authView()" class="text-xs text-white/60">${signup ? 'Have an account? Sign in' : 'New here? Create an account'}</button>
+  </form></div>`;
+}
+async function auth(e) {
+  e.preventDefault();
+  try {
+    const d = await api(signup ? '/api/signup' : '/api/login', J({ email: $('em').value.trim(), password: $('pw').value }));
+    token = d.token; localStorage.setItem('jt', token); ME = d; boot();
+  } catch (x) { fail(x); }
+}
+function logout() { token = null; ME = null; localStorage.removeItem('jt'); closeSheet(); signup = false; authView(); }
+
+// ---------- shell ----------
+const NAV = [['home', 'house', 'Home'], ['search', 'magnifying-glass', 'Discover'], ['upload', 'plus', ''], ['inbox', 'paper-plane', 'Inbox'], ['me', 'user', 'Profile']];
+function boot() {
+  theme();
+  $('root').innerHTML = `<div id="view" class="flex-1 relative overflow-hidden"></div>
+  <nav class="shrink-0 h-14 bg-black border-t border-white/10 flex items-center justify-around text-[10px] pb-[env(safe-area-inset-bottom)] box-content">
+  ${NAV.map(([t, i, l]) => t == 'upload'
+    ? `<button id="n-upload" onclick="go('upload')" class="w-12 h-8 rounded-lg bg-gradient-to-r from-cyan-400 to-[var(--a)] flex items-center justify-center"><i class="fa-solid fa-plus"></i></button>`
+    : `<button id="n-${t}" onclick="go('${t}')" class="flex flex-col items-center gap-0.5 w-14"><i class="fa-solid fa-${i} text-lg"></i>${l}</button>`).join('')}</nav>`;
+  go('home');
+}
+function hl(t) { NAV.forEach(([k]) => { const b = $('n-' + k); if (b && k != 'upload') b.style.opacity = k == t ? 1 : .5; }); }
+function go(t) {
+  closeSheet(); if ($('ov')) $('ov').remove();
+  S.tab = t; S.chat = null; hl(t);
+  ({ home: homeView, search: searchView, upload: uploadView, inbox: inboxView, me: () => profileView() })[t]();
+}
+
+// ---------- sheets ----------
+function sheet(h) {
+  closeSheet();
+  const d = document.createElement('div');
+  d.id = 'sheet'; d.className = 'fixed inset-0 z-50 bg-black/60 flex items-end justify-center fi';
+  d.onclick = (e) => { if (e.target == d) closeSheet(); };
+  d.innerHTML = `<div class="sheet w-full max-w-md bg-zinc-900 rounded-t-3xl max-h-[88vh] overflow-y-auto ns">${h}</div>`;
+  document.body.appendChild(d);
+}
+const closeSheet = () => { if ($('sheet')) $('sheet').remove(); };
+
+// ---------- feed ----------
+const cap = (c) => esc(c).replace(/#(\w+)/g, '<b class="cursor-pointer" onclick="searchFor(\'#$1\')">#$1</b>');
+const likeIn = (v) => `<div class="w-12 h-12 rounded-full bg-black/40 flex items-center justify-center text-2xl ${v.liked ? 'text-[var(--a)]' : ''}"><i class="fa-${v.liked ? 'solid' : 'regular'} fa-heart"></i></div><span class="text-xs font-semibold">${v.likes}</span>`;
+function card(v) {
+  V[v.id] = v;
+  return `<section data-v="${v.id}" ondblclick="dbl('${v.id}',event)" class="h-full w-full snap-start relative bg-black flex items-center justify-center overflow-hidden">
+  <video src="${API + v.url}" crossorigin="anonymous" loop playsinline preload="metadata" class="h-full w-full object-contain" onclick="this.paused?this.play():this.pause()"></video>
+  <div class="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black/80 to-transparent pointer-events-none"></div>
+  <div class="absolute right-3 bottom-8 flex flex-col items-center gap-4 z-10">
+    <div class="relative mb-2"><button onclick="openUser('${v.author}')" class="w-12 h-12 rounded-full bg-zinc-800 border-2 border-white text-2xl flex items-center justify-center">${v.avatar}</button>
+    ${v.author != ME.username ? `<button data-f="${v.author}" onclick="follow('${v.author}')" class="plus absolute -bottom-2 left-3.5 w-5 h-5 rounded-full bg-[var(--a)] text-xs flex items-center justify-center"><i class="fa-solid fa-plus"></i></button>` : ''}</div>
+    <button data-lk="${v.id}" onclick="like('${v.id}')" class="flex flex-col items-center gap-1">${likeIn(v)}</button>
+    <button onclick="comments('${v.id}')" class="flex flex-col items-center gap-1"><div class="w-12 h-12 rounded-full bg-black/40 flex items-center justify-center text-xl"><i class="fa-solid fa-comment-dots"></i></div><span data-cc="${v.id}" class="text-xs font-semibold">${v.comments.length}</span></button>
+    <button onclick="share('${v.id}')" class="flex flex-col items-center gap-1"><div class="w-12 h-12 rounded-full bg-black/40 flex items-center justify-center text-xl"><i class="fa-solid fa-share"></i></div><span class="text-xs font-semibold">Share</span></button>
+  </div>
+  <div class="absolute left-4 bottom-6 right-20 z-10"><b class="text-sm cursor-pointer" onclick="openUser('${v.author}')">@${esc(v.author)}</b><p class="text-xs mt-1 line-clamp-2">${cap(v.caption)}</p></div>
+  </section>`;
+}
+function autoplay(root) {
+  const io = new IntersectionObserver((es) => es.forEach((e) => {
+    const v = e.target;
+    if (e.isIntersecting) {
+      v.muted = !ME.settings.sound;
+      if (ME.settings.autoplay !== false) v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+    } else { v.pause(); v.currentTime = 0; }
+  }), { threshold: .6 });
+  root.querySelectorAll('video').forEach((v) => io.observe(v));
+}
+async function homeView() {
+  $('view').innerHTML = `<div class="absolute top-0 inset-x-0 z-20 flex justify-center gap-6 pt-3 text-sm font-bold drop-shadow">
+  ${['following', 'foryou'].map((t) => `<button onclick="S.feed='${t}';homeView()" class="pb-1 border-b-2 ${S.feed == t ? 'border-white' : 'border-transparent text-white/60'}">${t == 'foryou' ? 'For You' : 'Following'}</button>`).join('')}</div>
+  <div id="feed" class="h-full overflow-y-scroll ns snap-y snap-mandatory fi"></div>`;
+  try {
+    const l = await api('/api/videos?tab=' + S.feed), f = $('feed');
+    if (!f) return;
+    f.innerHTML = l.map(card).join('') || `<div class="h-full flex flex-col items-center justify-center text-center p-8 text-white/60 text-sm"><i class="fa-solid fa-film text-4xl mb-3"></i>${S.feed == 'following' ? 'Follow some creators to fill this feed.' : 'No videos yet. Be the first to post!'}</div>`;
+    autoplay(f);
+  } catch (e) { fail(e); }
+}
+async function like(id) {
+  try {
+    const v = await api('/api/videos/' + id + '/like', { method: 'POST' }); V[id] = v;
+    document.querySelectorAll(`[data-lk="${id}"]`).forEach((b) => { b.innerHTML = likeIn(v); b.firstChild.classList.add('bnc'); });
+  } catch (e) { fail(e); }
+}
+function dbl(id, e) {
+  const s = e.currentTarget, r = s.getBoundingClientRect(), h = document.createElement('i');
+  h.className = 'fa-solid fa-heart hp absolute text-6xl text-[var(--a)] pointer-events-none z-20';
+  h.style.cssText = `left:${e.clientX - r.left - 30}px;top:${e.clientY - r.top - 30}px`;
+  s.appendChild(h); setTimeout(() => h.remove(), 800);
+  if (!V[id].liked) like(id);
+}
+function watch(id) {
+  const o = document.createElement('div');
+  o.id = 'ov'; o.className = 'fixed inset-0 z-40 bg-black fi';
+  o.innerHTML = `<button onclick="$('ov').remove()" class="absolute top-3 left-3 z-20 w-10 h-10 rounded-full bg-black/50"><i class="fa-solid fa-chevron-left"></i></button><div id="feed2" class="h-full overflow-y-scroll ns snap-y snap-mandatory">${CUR.map(card).join('')}</div>`;
+  document.body.appendChild(o);
+  const f = $('feed2'); f.querySelector(`[data-v="${id}"]`).scrollIntoView(); autoplay(f);
+}
+const thumb = (v) => `<div class="aspect-[3/4] bg-zinc-900 relative cursor-pointer" onclick="watch('${v.id}')"><video src="${API + v.url}#t=0.1" muted preload="metadata" class="w-full h-full object-cover pointer-events-none"></video><span class="absolute bottom-1 left-1 text-xs drop-shadow"><i class="fa-solid fa-heart"></i> ${v.likes}</span></div>`;
+
+// ---------- comments / share / stickers ----------
+const cm = (c) => `<div class="flex gap-2"><span class="text-2xl">${c.avatar}</span><div><b class="text-xs text-white/60">@${esc(c.author)}</b>${c.text ? `<p class="text-sm">${esc(c.text)}</p>` : ''}${c.sticker ? `<img src="${API + c.sticker}" class="w-24 mt-1">` : ''}</div></div>`;
+function comments(id) {
+  const v = V[id];
+  sheet(`<div class="p-4 h-[70vh] flex flex-col"><h3 class="text-center text-sm font-bold mb-3">${v.comments.length} comments</h3>
+  <div class="flex-1 overflow-y-auto ns space-y-3">${v.comments.map(cm).join('') || '<p class="text-center text-white/40 text-sm mt-8">No comments yet</p>'}</div>
+  <div class="flex gap-2 pt-3"><button onclick="pickSticker((s)=>postC('${id}','',s),()=>comments('${id}'))" class="text-2xl px-1"><i class="fa-regular fa-face-smile"></i></button>
+  <input id="ci" onkeydown="if(event.key=='Enter')postC('${id}')" placeholder="Add comment..." class="${inp}"><button onclick="postC('${id}')" class="px-4 rounded-xl bg-[var(--a)] text-sm font-semibold">Post</button></div></div>`);
+}
+async function postC(id, t, s) {
+  t = t || ($('ci') ? $('ci').value.trim() : '');
+  try {
+    V[id] = await api('/api/videos/' + id + '/comments', J({ text: t, sticker: s && s.id }));
+    document.querySelectorAll(`[data-cc="${id}"]`).forEach((e) => e.textContent = V[id].comments.length);
+    comments(id);
+  } catch (e) { fail(e); }
+}
+function share(id) {
+  sheet(`<div class="p-6 grid grid-cols-2 gap-4 text-center text-xs">
+  <button onclick="navigator.clipboard&&navigator.clipboard.writeText(location.origin+'/#'+'${id}');closeSheet();toast('Link copied')" class="space-y-2"><div class="w-14 h-14 mx-auto rounded-full bg-white/10 flex items-center justify-center text-xl"><i class="fa-solid fa-link"></i></div>Copy link</button>
+  <button onclick="mkSticker('${id}')" class="space-y-2"><div class="w-14 h-14 mx-auto rounded-full bg-white/10 flex items-center justify-center text-xl"><i class="fa-solid fa-note-sticky"></i></div>Create sticker</button></div>`);
+}
+function mkSticker(id) {
+  _sv = document.querySelector(`[data-v="${id}"] video`); _sv.pause();
+  const W = 320, H = Math.round(W * (_sv.videoHeight || W) / (_sv.videoWidth || W));
+  sheet(`<div class="p-5 space-y-3 text-center"><h3 class="font-bold text-sm">Create sticker</h3>
+  <canvas id="sc" width="${W}" height="${H}" class="mx-auto rounded-2xl max-h-[40vh] bg-zinc-800"></canvas>
+  <input id="st" oninput="drawS()" maxlength="24" placeholder="Add text (optional)" class="${inp}">
+  <button onclick="saveSticker()" class="w-full py-3 rounded-xl font-semibold bg-[var(--a)]">Save sticker</button></div>`);
+  drawS();
+}
+function drawS() {
+  const c = $('sc'), x = c.getContext('2d'), t = $('st').value;
+  x.clearRect(0, 0, c.width, c.height); x.save();
+  if (x.roundRect) { x.beginPath(); x.roundRect(0, 0, c.width, c.height, 28); x.clip(); }
+  x.drawImage(_sv, 0, 0, c.width, c.height); x.restore();
+  if (t) { x.font = '800 34px system-ui'; x.textAlign = 'center'; x.lineWidth = 8; x.lineJoin = 'round'; x.strokeStyle = '#000'; x.strokeText(t, c.width / 2, c.height - 24, c.width - 20); x.fillStyle = '#fff'; x.fillText(t, c.width / 2, c.height - 24, c.width - 20); }
+}
+function saveSticker() {
+  try {
+    $('sc').toBlob(async (b) => {
+      if (!b) return toast('Could not capture this frame', 1);
+      const fd = new FormData(); fd.append('name', $('st').value || 'sticker'); fd.append('sticker', b, 'sticker.png');
+      try { await api('/api/stickers', { method: 'POST', body: fd }); closeSheet(); toast('Sticker saved! Use it in comments and messages'); } catch (e) { fail(e); }
+    }, 'image/png');
+  } catch (e) { toast('Could not capture this frame', 1); }
+}
+async function pickSticker(cb, back) {
+  _cb = cb;
+  try {
+    const l = await api('/api/stickers');
+    sheet(`<div class="p-4"><div class="flex items-center justify-between mb-3"><h3 class="font-bold text-sm">Stickers</h3><button onclick="${back ? 'closeSheet();(' + back + ')()' : 'closeSheet()'}" class="text-white/60 text-sm">Back</button></div>
+    <div class="grid grid-cols-3 gap-3">${l.map((s) => `<button onclick="_cb(${esc(JSON.stringify(s))})" class="aspect-square bg-white/5 rounded-xl p-1"><img src="${API + s.url}" class="w-full h-full object-contain"></button>`).join('')}</div>
+    ${l.length ? '' : '<p class="text-center text-white/40 text-sm py-8">No stickers yet. Tap Share → Create sticker on any video.</p>'}</div>`);
+  } catch (e) { fail(e); }
+}
+
+// ---------- follow / profile ----------
+async function follow(n) {
+  try {
+    const d = await api('/api/users/' + n + '/follow', { method: 'POST' });
+    document.querySelectorAll(`[data-f="${n}"]`).forEach((e) => e.classList.contains('plus') ? e.remove() : e.textContent = d.following ? 'Following' : 'Follow');
+    toast(d.following ? 'Following @' + n : 'Unfollowed @' + n);
+  } catch (e) { fail(e); }
+}
+function openUser(n) { closeSheet(); if ($('ov')) $('ov').remove(); S.tab = 'me'; hl(n == ME.username ? 'me' : ''); profileView(n); }
+async function profileView(n) {
+  n = n || ME.username;
+  try {
+    const p = await api('/api/users/' + n), mine = n == ME.username; CUR = p.videos; p.videos.forEach((v) => V[v.id] = v);
+    $('view').innerHTML = `<div class="h-full overflow-y-auto ns fi"><div class="p-6 text-center space-y-2 relative">
+    ${mine ? `<button onclick="settings()" class="absolute right-4 top-4 text-xl"><i class="fa-solid fa-gear"></i></button>` : `<button onclick="go('home')" class="absolute left-4 top-4 text-xl"><i class="fa-solid fa-chevron-left"></i></button>`}
+    <div class="text-6xl">${p.avatar}</div><b>@${esc(p.username)}</b>
+    <div class="flex justify-center gap-8 text-sm">${[['Following', p.following], ['Followers', p.followers], ['Likes', p.likes]].map(([l, c]) => `<div><b>${c}</b><p class="text-white/50 text-xs">${l}</p></div>`).join('')}</div>
+    <p class="text-sm text-white/70">${esc(p.bio)}</p>
+    ${mine ? `<button onclick="settings()" class="px-6 py-2 rounded-lg bg-white/10 text-sm font-semibold">Edit profile &amp; settings</button>`
+      : `<div class="flex justify-center gap-2"><button data-f="${p.username}" onclick="follow('${p.username}')" class="px-6 py-2 rounded-lg bg-[var(--a)] text-sm font-semibold">${p.isFollowing ? 'Following' : 'Follow'}</button><button onclick="openChat('${p.username}')" class="px-6 py-2 rounded-lg bg-white/10 text-sm font-semibold">Message</button></div>`}
+    </div><div class="grid grid-cols-3 gap-0.5">${p.videos.map(thumb).join('') || '<p class="col-span-3 text-center text-white/40 text-sm py-10">No videos yet</p>'}</div></div>`;
+  } catch (e) { fail(e); }
+}
+const EMOJI = ['😎', '🦊', '🐼', '🐸', '🦄', '🐙', '👻', '🤖', '🔥', '🌈'], COLORS = ['#ec4899', '#22d3ee', '#a78bfa', '#f59e0b', '#22c55e', '#ef4444'];
+function settings() {
+  const s = ME.settings;
+  sheet(`<div class="p-5 space-y-4"><h3 class="font-bold text-center">Settings</h3>
+  <div><p class="text-xs text-white/50 mb-2">Avatar</p><div class="flex flex-wrap gap-2">${EMOJI.map((e) => `<button onclick="this.parentNode.dataset.v='${e}';[...this.parentNode.children].forEach(b=>b.style.outline='');this.style.outline='2px solid var(--a)'" class="text-3xl rounded-xl p-1" ${e == ME.avatar ? 'style="outline:2px solid var(--a)"' : ''}>${e}</button>`).join('')}</div></div>
+  <div><p class="text-xs text-white/50 mb-2">Bio</p><textarea id="bio" rows="2" maxlength="160" class="${inp} resize-none">${esc(ME.bio)}</textarea></div>
+  <div><p class="text-xs text-white/50 mb-2">Accent color</p><div id="ac" data-v="${s.accent || '#ec4899'}" class="flex gap-3">${COLORS.map((c) => `<button onclick="this.parentNode.dataset.v='${c}';document.documentElement.style.setProperty('--a','${c}');[...this.parentNode.children].forEach(b=>b.style.outline='');this.style.outline='2px solid #fff'" class="w-8 h-8 rounded-full" style="background:${c};${c == (s.accent || '#ec4899') ? 'outline:2px solid #fff' : ''}"></button>`).join('')}</div></div>
+  <label class="flex justify-between text-sm"><span>Play videos with sound</span><input id="snd" type="checkbox" ${s.sound ? 'checked' : ''} class="accent-[var(--a)] w-5 h-5"></label>
+  <label class="flex justify-between text-sm"><span>Autoplay videos</span><input id="aut" type="checkbox" ${s.autoplay !== false ? 'checked' : ''} class="accent-[var(--a)] w-5 h-5"></label>
+  <button onclick="saveSettings()" class="w-full py-3 rounded-xl font-semibold bg-[var(--a)]">Save</button>
+  <button onclick="logout()" class="w-full py-3 rounded-xl font-semibold bg-white/10 text-red-400">Sign out</button></div>`);
+}
+async function saveSettings() {
+  const emo = document.querySelector('#sheet .flex-wrap').dataset.v;
+  try {
+    ME = await api('/api/me', J({ bio: $('bio').value, avatar: emo || ME.avatar, settings: { accent: $('ac').dataset.v, sound: $('snd').checked, autoplay: $('aut').checked } }, 'PUT'));
+    theme(); closeSheet(); toast('Saved'); profileView();
+  } catch (e) { fail(e); }
+}
+
+// ---------- discover ----------
+const searchFor = (t) => { S.q = t; go('search'); };
+function searchView() {
+  $('view').innerHTML = `<div class="h-full flex flex-col fi"><div class="p-3"><input id="q" value="${esc(S.q)}" onkeydown="if(event.key=='Enter'){S.q=this.value;doSearch()}" placeholder="Search accounts, #hashtags, videos" class="${inp} rounded-full"></div><div id="res" class="flex-1 overflow-y-auto ns p-3 space-y-4"></div></div>`;
+  doSearch();
+}
+async function doSearch() {
+  const q = encodeURIComponent(S.q || '');
+  try {
+    const [us, vs] = await Promise.all([api('/api/users?q=' + q), api('/api/videos?q=' + q)]); CUR = vs;
+    if (!$('res')) return;
+    $('res').innerHTML = (S.q ? `<div class="space-y-1">${us.map((u) => `<div class="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5"><button onclick="openUser('${u.username}')" class="flex items-center gap-3 flex-1 text-left"><span class="text-3xl">${u.avatar}</span><div><b class="text-sm">@${esc(u.username)}</b><p class="text-xs text-white/50">${u.followers} followers</p></div></button>${u.username != ME.username ? `<button data-f="${u.username}" onclick="follow('${u.username}')" class="px-4 py-1.5 rounded-lg bg-[var(--a)] text-xs font-semibold">${u.isFollowing ? 'Following' : 'Follow'}</button>` : ''}</div>`).join('')}</div>` : '')
+      + `<p class="text-xs text-white/50">${S.q ? 'Videos' : 'Trending'}</p><div class="grid grid-cols-3 gap-0.5">${vs.map(thumb).join('') || '<p class="col-span-3 text-center text-white/40 text-sm py-10">Nothing found</p>'}</div>`;
+  } catch (e) { fail(e); }
+}
+
+// ---------- upload ----------
+function uploadView() {
+  window._f = null;
+  $('view').innerHTML = `<div class="h-full overflow-y-auto ns p-5 space-y-4 fi"><h2 class="text-xl font-bold">New video</h2>
+  <div id="pv" class="h-[40vh] rounded-2xl bg-white/5 flex items-center justify-center text-white/40 overflow-hidden"><i class="fa-solid fa-film text-4xl"></i></div>
+  <div class="flex gap-2">
+    <label class="flex-1 text-center py-3 rounded-xl bg-white/10 text-sm font-semibold cursor-pointer"><i class="fa-solid fa-folder-open"></i> Choose<input type="file" accept="video/*" class="hidden" onchange="pick(this)"></label>
+    <label class="flex-1 text-center py-3 rounded-xl bg-white/10 text-sm font-semibold cursor-pointer"><i class="fa-solid fa-camera"></i> Record<input type="file" accept="video/*" capture="user" class="hidden" onchange="pick(this)"></label></div>
+  <textarea id="cp" rows="3" placeholder="Caption... #hashtags" class="${inp} resize-none"></textarea>
+  <button id="pub" onclick="publish()" class="w-full py-3 rounded-xl font-semibold bg-[var(--a)]">Post</button></div>`;
+}
+function pick(i) {
+  const f = i.files[0]; if (!f) return;
+  if (f.size > 50 * 1048576) return toast('Video must be under 50MB', 1);
+  window._f = f; $('pv').innerHTML = `<video src="${URL.createObjectURL(f)}" autoplay muted loop playsinline class="h-full w-full object-contain"></video>`;
+}
+async function publish() {
+  if (!window._f) return toast('Choose or record a video first', 1);
+  const b = $('pub'); b.disabled = true; b.textContent = 'Uploading...';
+  const fd = new FormData(); fd.append('caption', $('cp').value.trim() || 'No caption'); fd.append('video', window._f, window._f.name || 'video.mp4');
+  try { await api('/api/videos', { method: 'POST', body: fd }); toast('Posted!'); S.feed = 'foryou'; go('home'); }
+  catch (e) { fail(e); b.disabled = false; b.textContent = 'Post'; }
+}
+
+// ---------- inbox / chat ----------
+async function inboxView() {
+  try {
+    const l = await api('/api/inbox');
+    $('view').innerHTML = `<div class="h-full overflow-y-auto ns fi"><h2 class="text-xl font-bold p-4 pb-0">Inbox</h2><div class="p-4 flex gap-2"><input id="nm" placeholder="Message a username..." class="${inp}"><button onclick="openChat($('nm').value.trim().toLowerCase())" class="px-4 rounded-xl bg-[var(--a)] text-sm font-semibold">Go</button></div>
+    ${l.map((c) => `<button onclick="openChat('${c.user}')" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5"><span class="text-3xl">${c.avatar}</span><div class="min-w-0"><b class="text-sm">@${esc(c.user)}</b><p class="text-xs text-white/50 truncate">${esc(c.last)}</p></div></button>`).join('') || '<p class="text-center text-white/40 text-sm mt-10">No messages yet</p>'}</div>`;
+  } catch (e) { fail(e); }
+}
+const bub = (m) => { const me = m.from == ME.username; return `<div class="flex ${me ? 'justify-end' : ''}"><div class="${me ? 'bg-[var(--a)]' : 'bg-white/10'} rounded-2xl px-3 py-2 max-w-[75%] text-sm">${m.text ? esc(m.text) : ''}${m.sticker ? `<img src="${API + m.sticker}" class="w-28">` : ''}</div></div>`; };
+async function openChat(u) {
+  if (!u) return;
+  try {
+    const m = await api('/api/messages/' + u); closeSheet(); if ($('ov')) $('ov').remove();
+    S.tab = 'inbox'; S.chat = u; hl('inbox');
+    $('view').innerHTML = `<div class="h-full flex flex-col fi"><div class="p-3 flex items-center gap-3 border-b border-white/10"><button onclick="go('inbox')"><i class="fa-solid fa-chevron-left"></i></button><b>@${esc(u)}</b></div>
+    <div id="ml" class="flex-1 overflow-y-auto ns p-3 space-y-2">${m.map(bub).join('')}</div>
+    <div class="p-3 flex gap-2 border-t border-white/10"><button onclick="pickSticker((s)=>sendM('',s))" class="text-2xl px-1"><i class="fa-regular fa-face-smile"></i></button><input id="mi" onkeydown="if(event.key=='Enter')sendM()" placeholder="Message..." class="${inp}"><button onclick="sendM()" class="px-4 rounded-xl bg-[var(--a)] text-sm font-semibold">Send</button></div></div>`;
+    $('ml').scrollTop = 1e9;
+  } catch (e) { fail(e); }
+}
+async function sendM(t, s) {
+  t = t || ($('mi') ? $('mi').value.trim() : '');
+  if (!t && !s) return;
+  try { await api('/api/messages/' + S.chat, J({ text: t, sticker: s && s.id })); openChat(S.chat); } catch (e) { fail(e); }
+}
+setInterval(async () => {
+  if (S.tab == 'inbox' && S.chat && $('ml') && !$('sheet')) {
+    const m = await api('/api/messages/' + S.chat).catch(() => 0);
+    if (m && $('ml')) { const b = $('ml').scrollTop; $('ml').innerHTML = m.map(bub).join(''); $('ml').scrollTop = b; }
+  }
+}, 4000);
+
+// ---------- start ----------
+if (token) api('/api/me').then((d) => { ME = d; boot(); }).catch(() => { token = null; authView(); }); else authView();
+</script>
+</body>
+</html>
