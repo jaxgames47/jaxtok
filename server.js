@@ -3,6 +3,7 @@ const DATA = process.env.DATA_DIR || path.join(__dirname, 'data'), UP = path.joi
 fs.mkdirSync(UP, { recursive: true });
 const db = Object.assign({ users: {}, sessions: {}, videos: [], stickers: [], messages: [] }, fs.existsSync(F) ? JSON.parse(fs.readFileSync(F, 'utf8')) : {});
 const save = () => fs.writeFileSync(F, JSON.stringify(db));
+if (!db.users['jaxtok@jaxtok.app']) { db.users['jaxtok@jaxtok.app'] = { salt: 'x', hash: '!', following: [], settings: {}, bio: 'Official JaxTok account', createdAt: new Date().toISOString() }; save(); }
 const app = express();
 app.use(express.json());
 app.use((q, r, n) => {
@@ -18,14 +19,15 @@ const find = (n) => Object.keys(db.users).find((e) => nm(e) === String(n).toLowe
 const who = (q) => db.sessions[(q.headers.authorization || '').replace('Bearer ', '')];
 const auth = (q, r, n) => { const e = who(q); if (!e || !db.users[e]) return r.status(401).json({ error: 'Please sign in again.' }); q.email = e; n(); };
 const hp = (p, s) => crypto.scryptSync(p, s, 32).toString('hex');
-const av = (e) => U(e).avatar || '😎';
+const av = (e) => U(e).avatar || '';
+const mu = (x) => (typeof x === 'string' && /^\/uploads\/[\w.-]+$/.test(x)) ? x : undefined;
 const prof = (e) => ({ username: nm(e), bio: U(e).bio || '', avatar: av(e), settings: U(e).settings });
 const sess = (e) => { const t = crypto.randomBytes(24).toString('hex'); db.sessions[t] = e; save(); return { token: t, ...prof(e) }; };
 const followers = (e) => Object.values(db.users).filter((u) => (u.following || []).includes(e)).length;
 const pv = (v, me) => ({
   id: v.id, author: nm(v.author), avatar: av(v.author), caption: v.caption, url: '/uploads/' + v.file,
   likes: v.likedBy.length, liked: !!me && v.likedBy.includes(me),
-  comments: v.comments.map((c) => ({ author: nm(c.author), avatar: av(c.author), text: c.text, sticker: c.sticker, createdAt: c.createdAt })),
+  comments: v.comments.map((c) => ({ author: nm(c.author), avatar: av(c.author), text: c.text, sticker: c.sticker, image: c.image, audio: c.audio, createdAt: c.createdAt })),
   createdAt: v.createdAt,
 });
 
@@ -48,7 +50,7 @@ app.get('/api/me', auth, (q, r) => r.json(prof(q.email)));
 app.put('/api/me', auth, (q, r) => {
   const u = U(q.email), b = q.body || {}, s = b.settings || {};
   if (typeof b.bio === 'string') u.bio = b.bio.slice(0, 160);
-  if (typeof b.avatar === 'string') u.avatar = b.avatar.slice(0, 8);
+  if (b.avatar === '') u.avatar = '';
   u.settings = { accent: String(s.accent || '#ec4899').slice(0, 7), sound: !!s.sound, autoplay: s.autoplay !== false };
   save(); r.json(prof(q.email));
 });
@@ -73,13 +75,22 @@ app.post('/api/users/:n/follow', auth, (q, r) => {
 });
 
 // ---- uploads ----
-const EXT = { 'video/mp4': '.mp4', 'video/webm': '.webm', 'video/quicktime': '.mov', 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif' };
+const EXT = { 'video/mp4': '.mp4', 'video/webm': '.webm', 'video/quicktime': '.mov', 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif', 'audio/webm': '.webm', 'audio/mp4': '.m4a', 'audio/mpeg': '.mp3', 'audio/ogg': '.ogg' };
 const up = multer({
-  storage: multer.diskStorage({ destination: UP, filename: (q, f, cb) => cb(null, crypto.randomUUID() + (EXT[f.mimetype] || (f.fieldname === 'video' ? '.mp4' : '.png'))) }),
+  storage: multer.diskStorage({ destination: UP, filename: (q, f, cb) => cb(null, crypto.randomUUID() + (EXT[f.mimetype] || (f.mimetype.startsWith('audio') ? '.webm' : f.mimetype.startsWith('video') ? '.mp4' : '.png'))) }),
   limits: { fileSize: 50 * 1048576 },
-  fileFilter: (q, f, cb) => cb(null, f.mimetype.startsWith(f.fieldname === 'video' ? 'video/' : 'image/')),
+  fileFilter: (q, f, cb) => cb(null, (({ video: ['video/'], sticker: ['image/', 'video/'], media: ['image/', 'audio/'] })[f.fieldname] || []).some((x) => f.mimetype.startsWith(x))),
 });
 const one = (f) => (q, r, n) => up.single(f)(q, r, (e) => e ? r.status(400).json({ error: e.code === 'LIMIT_FILE_SIZE' ? 'File is over 50MB.' : 'Upload failed.' }) : n());
+
+app.post('/api/media', auth, one('media'), (q, r) => {
+  if (!q.file) return r.status(400).json({ error: 'Unsupported file.' });
+  r.json({ url: '/uploads/' + q.file.filename, kind: q.file.mimetype.startsWith('audio') ? 'audio' : 'image' });
+});
+app.post('/api/me/avatar', auth, one('media'), (q, r) => {
+  if (!q.file || !q.file.mimetype.startsWith('image/')) return r.status(400).json({ error: 'Please choose an image.' });
+  U(q.email).avatar = '/uploads/' + q.file.filename; save(); r.json(prof(q.email));
+});
 
 // ---- videos ----
 app.get('/api/videos', (q, r) => {
@@ -102,8 +113,9 @@ app.post('/api/videos/:id/like', auth, vid, (q, r) => {
 });
 app.post('/api/videos/:id/comments', auth, vid, (q, r) => {
   const text = String(q.body.text || '').trim().slice(0, 500), st = db.stickers.find((s) => s.id === q.body.sticker);
-  if (!text && !st) return r.status(400).json({ error: 'Write a comment or pick a sticker.' });
-  q.v.comments.push({ author: q.email, text, sticker: st && '/uploads/' + st.file, createdAt: new Date().toISOString() });
+  const image = mu(q.body.image), audio = mu(q.body.audio);
+  if (!text && !st && !image && !audio) return r.status(400).json({ error: 'Write a comment or add a sticker, photo or voice note.' });
+  q.v.comments.push({ author: q.email, text, sticker: st && '/uploads/' + st.file, image, audio, createdAt: new Date().toISOString() });
   save(); r.json(pv(q.v, q.email));
 });
 
@@ -116,11 +128,11 @@ app.post('/api/stickers', auth, one('sticker'), (q, r) => {
 });
 
 // ---- messages ----
-const mj = (m) => ({ from: nm(m.from), text: m.text, sticker: m.sticker, createdAt: m.createdAt });
+const mj = (m) => ({ from: nm(m.from), text: m.text, sticker: m.sticker, image: m.image, audio: m.audio, createdAt: m.createdAt });
 app.get('/api/inbox', auth, (q, r) => {
   const m = new Map();
   db.messages.forEach((x) => { if (x.from === q.email || x.to === q.email) { const k = x.from === q.email ? x.to : x.from; m.delete(k); m.set(k, x); } });
-  r.json([...m].reverse().map(([e, x]) => ({ user: nm(e), avatar: av(e), last: x.text || '[sticker]' })));
+  r.json([...m].reverse().map(([e, x]) => ({ user: nm(e), avatar: av(e), last: x.text || (x.audio ? '[voice message]' : x.image ? '[photo]' : '[sticker]') })));
 });
 app.get('/api/messages/:n', auth, (q, r) => {
   const e = find(q.params.n);
@@ -130,8 +142,9 @@ app.get('/api/messages/:n', auth, (q, r) => {
 app.post('/api/messages/:n', auth, (q, r) => {
   const e = find(q.params.n), text = String(q.body.text || '').trim().slice(0, 1000), st = db.stickers.find((s) => s.id === q.body.sticker);
   if (!e || e === q.email) return r.status(400).json({ error: "Can't message that account." });
-  if (!text && !st) return r.status(400).json({ error: 'Nothing to send.' });
-  const m = { from: q.email, to: e, text, sticker: st && '/uploads/' + st.file, createdAt: new Date().toISOString() };
+  const image = mu(q.body.image), audio = mu(q.body.audio);
+  if (!text && !st && !image && !audio) return r.status(400).json({ error: 'Nothing to send.' });
+  const m = { from: q.email, to: e, text, sticker: st && '/uploads/' + st.file, image, audio, createdAt: new Date().toISOString() };
   db.messages.push(m); save(); r.json(mj(m));
 });
 
