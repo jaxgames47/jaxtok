@@ -1,900 +1,764 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full bg-slate-950">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JaxTok Social App</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome Icons -->
+    <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts -->
+    <!-- Google Fonts Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0b0e14;
-            color: #f3f4f6;
-            overflow-x: hidden;
+        body { font-family: 'Inter', sans-serif; }
+        /* Hide scrollbars for slick vertical feed */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes pulse-subtle {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
-
-        /* Custom Snap Scrolling for Video Feed */
-        .video-feed-container {
-            scroll-snap-type: y mandatory;
-            overflow-y: scroll;
-            height: calc(100vh - 2rem);
-            scrollbar-width: none; /* Firefox */
-        }
-        .video-feed-container::-webkit-scrollbar {
-            display: none; /* Chrome, Safari, Opera */
-        }
-        .video-card {
-            scroll-snap-align: start;
-            scroll-snap-stop: always;
-            height: calc(100vh - 3rem);
-        }
-
-        /* Rainbow Gradient Text */
-        .rainbow-text {
-            background: linear-gradient(135deg, #ff0050, #00f2fe, #fe2c55);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        /* Custom Scrollbar for sidebars */
-        .custom-scroll::-webkit-scrollbar {
-            width: 4px;
-        }
-        .custom-scroll::-webkit-scrollbar-thumb {
-            background: #2d3748;
-            border-radius: 4px;
-        }
-
-        /* Glassmorphism effects */
-        .glass-panel {
-            background: rgba(18, 24, 38, 0.75);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-        
-        .recording-pulse {
-            animation: pulse-red 1.5s infinite;
-        }
-        @keyframes pulse-red {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-        }
+        .animate-pulse-subtle { animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
     </style>
 </head>
-<body class="bg-[#0b0e14] text-gray-100 flex justify-center items-center min-h-screen">
+<body class="h-full text-slate-100 flex flex-col overflow-hidden select-none">
 
-    <!-- APP CONTAINER -->
-    <div id="app" class="w-full h-screen flex overflow-hidden max-w-[1600px] relative">
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- MAIN APP CONTAINER -->
+    <div id="app" class="flex-1 flex flex-col h-full relative overflow-hidden">
         
-        <!-- LEFT SIDEBAR -->
-        <aside class="w-64 lg:w-72 border-r border-gray-800 flex flex-col justify-between p-4 hidden md:flex z-20 bg-[#0b0e14]">
-            <div class="space-y-6">
-                <!-- LOGO -->
-                <div class="flex items-center gap-3 px-2 py-1">
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-pink-500 via-purple-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-pink-500/20">
-                        <i class="fa-solid fa-play text-white text-lg"></i>
+        <!-- AUTHENTICATION GATE -->
+        <div id="auth-gate" class="absolute inset-0 z-40 bg-slate-950 flex items-center justify-center p-4">
+            <div class="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-8 shadow-2xl backdrop-blur-xl relative overflow-hidden">
+                <div class="absolute -top-24 -right-24 w-48 h-48 bg-pink-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                
+                <div class="text-center mb-8">
+                    <div class="w-16 h-16 mx-auto mb-4 bg-gradient-to-tr from-pink-500 to-cyan-400 rounded-2xl flex items-center justify-center shadow-lg shadow-pink-500/20">
+                        <i class="fa-solid fa-bolt text-2xl text-white"></i>
                     </div>
-                    <span class="text-2xl font-black tracking-tight rainbow-text">JaxTok</span>
+                    <h1 class="text-2xl font-bold tracking-tight text-white">Welcome to JaxTok</h1>
+                    <p id="auth-subtitle" class="text-sm text-slate-400 mt-1">Sign in or create an account to access the video feed</p>
                 </div>
 
-                <!-- NAV MENU -->
-                <nav class="space-y-1">
-                    <button id="nav-for-you" onclick="switchTab('feed')" class="w-full flex items-center gap-4 px-4 py-3 text-lg font-semibold rounded-xl bg-gradient-to-r from-pink-500/10 to-transparent text-pink-500 border-l-4 border-pink-500 transition-all">
-                        <i class="fa-solid fa-house"></i>
-                        <span>For You</span>
-                    </button>
-                    <button id="open-create-modal-btn" class="w-full flex items-center gap-4 px-4 py-3 text-lg font-semibold rounded-xl text-gray-400 hover:bg-gray-800/60 hover:text-white transition-all">
-                        <i class="fa-solid fa-circle-plus text-cyan-400"></i>
-                        <span>Create / Record</span>
-                    </button>
-                    <button id="nav-profile" onclick="openProfileModal()" class="w-full flex items-center gap-4 px-4 py-3 text-lg font-semibold rounded-xl text-gray-400 hover:bg-gray-800/60 hover:text-white transition-all">
-                        <i class="fa-solid fa-user"></i>
-                        <span>Profile</span>
-                    </button>
-                </nav>
-            </div>
-
-            <!-- USER INFO / AUTH ACTIONS -->
-            <div class="border-t border-gray-800 pt-4 space-y-3">
-                <div id="user-drawer-info" class="flex items-center justify-between px-2">
-                    <div class="flex items-center gap-3 overflow-hidden">
-                        <div id="user-avatar" class="w-10 h-10 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center font-bold text-white shrink-0">
-                            U
-                        </div>
-                        <div class="truncate">
-                            <h4 id="user-display-name" class="font-bold text-sm truncate">User</h4>
-                            <p id="user-handle" class="text-xs text-gray-500 truncate">@user</p>
+                <form id="auth-form" class="space-y-4" onsubmit="handleAuthSubmit(event)">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Email Address</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                                <i class="fa-regular fa-envelope"></i>
+                            </span>
+                            <input type="email" id="auth-email" required placeholder="name@example.com"
+                                class="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all">
                         </div>
                     </div>
-                    <button id="logout-btn" title="Sign Out" class="p-2 text-gray-400 hover:text-red-400 rounded-lg transition-colors">
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Password</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                                <i class="fa-solid fa-lock"></i>
+                            </span>
+                            <input type="password" id="auth-password" required placeholder="••••••••"
+                                class="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all">
+                        </div>
+                    </div>
+
+                    <button type="submit" id="auth-submit-btn"
+                        class="w-full py-3.5 px-4 bg-gradient-to-r from-pink-500 to-cyan-500 hover:from-pink-600 hover:to-cyan-600 text-white font-semibold rounded-xl shadow-lg shadow-pink-500/25 transition-all transform active:scale-[0.99]">
+                        Sign In
+                    </button>
+                </form>
+
+                <div class="mt-6 text-center">
+                    <button onclick="toggleAuthMode()" id="auth-toggle-btn" class="text-xs text-slate-400 hover:text-white transition-colors">
+                        Don't have an account? <span class="text-pink-400 font-semibold underline">Create one</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN DASHBOARD CONTENT (Hidden until authenticated) -->
+        <div id="main-dashboard" class="flex-1 flex flex-col h-full hidden relative">
+            
+            <!-- TOP APP BAR -->
+            <header class="h-14 border-b border-slate-800 bg-slate-900/60 backdrop-blur-md px-4 flex items-center justify-between z-30 shrink-0">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 bg-gradient-to-tr from-pink-500 to-cyan-400 rounded-lg flex items-center justify-center">
+                        <i class="fa-solid fa-bolt text-sm text-white"></i>
+                    </div>
+                    <span class="font-extrabold tracking-tight text-lg bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">JaxTok</span>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <span id="user-display-email" class="text-xs text-slate-400 hidden sm:inline-block"></span>
+                    <button onclick="openUploadModal()" class="flex items-center gap-2 bg-pink-500 hover:bg-pink-600 text-white px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-md shadow-pink-500/20 transition-all">
+                        <i class="fa-solid fa-plus"></i> Upload / Record
+                    </button>
+                    <button onclick="logoutUser()" title="Sign Out" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs transition-colors">
                         <i class="fa-solid fa-right-from-bracket"></i>
                     </button>
                 </div>
-            </div>
-        </aside>
+            </header>
 
-        <!-- MAIN CONTENT / FEED -->
-        <main class="flex-1 flex justify-center relative items-center bg-[#05070a]">
-            
             <!-- FEED CONTAINER -->
-            <div id="video-feed" class="video-feed-container w-full max-w-[440px] py-4 relative">
-                <!-- Video Cards dynamically loaded here -->
-            </div>
-
-            <!-- EMPTY FEED STATE -->
-            <div id="empty-feed" class="hidden flex flex-col items-center justify-center text-center p-8 space-y-4">
-                <div class="w-20 h-20 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center text-gray-600 text-3xl">
-                    <i class="fa-solid fa-video-slash"></i>
+            <main class="flex-1 relative overflow-hidden bg-slate-950 flex justify-center">
+                <div id="feed-container" class="w-full max-w-md h-full overflow-y-scroll no-scrollbar snap-y snap-mandatory relative bg-slate-900">
+                    <!-- Dynamic Video Items injected here -->
                 </div>
-                <h3 class="text-xl font-bold">Nothing Here Yet!</h3>
-                <p class="text-gray-400 max-w-xs text-sm">Be the first creator to record or upload a video for everyone to watch!</p>
-                <button onclick="document.getElementById('open-create-modal-btn').click()" class="px-6 py-2.5 bg-gradient-to-r from-pink-500 to-cyan-500 text-white font-bold rounded-full shadow-lg shadow-pink-500/25 hover:opacity-95 transition">
-                    Upload First Video
-                </button>
-            </div>
-        </main>
 
-        <!-- RIGHT SIDEBAR (CREATORS & STATS) -->
-        <aside class="w-80 border-l border-gray-800 p-6 hidden lg:flex flex-col gap-6 bg-[#0b0e14]">
-            
-            <!-- USER STATS CARD -->
-            <div class="glass-panel p-4 rounded-2xl relative overflow-hidden">
-                <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-pink-500/10 rounded-full blur-xl"></div>
-                <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Your Account</h3>
-                <div class="flex items-center gap-3 mb-4">
-                    <div id="stats-avatar" class="w-12 h-12 rounded-full bg-gradient-to-tr from-pink-500 to-cyan-400 flex items-center justify-center font-bold text-white text-lg">
-                        U
+                <!-- Empty State Message -->
+                <div id="empty-feed" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center hidden z-10 bg-slate-900">
+                    <div class="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center text-slate-500 text-3xl mb-4">
+                        <i class="fa-solid fa-film"></i>
                     </div>
-                    <div>
-                        <div id="stats-name" class="font-bold">Creator Account</div>
-                        <div id="stats-email" class="text-xs text-gray-400">user@jaxtok.app</div>
-                    </div>
+                    <h3 class="text-lg font-bold text-white">No Videos Found</h3>
+                    <p class="text-sm text-slate-400 max-w-xs mt-1 mb-6">Be the first creator to share a video on JaxTok!</p>
+                    <button onclick="openUploadModal()" class="px-6 py-3 bg-pink-500 hover:bg-pink-600 text-white font-semibold rounded-xl text-sm shadow-lg shadow-pink-500/25 transition-all">
+                        Create First Video
+                    </button>
                 </div>
-                <div class="grid grid-cols-2 gap-2 text-center bg-gray-900/60 p-2.5 rounded-xl border border-gray-800">
-                    <div>
-                        <div id="user-video-count" class="font-black text-lg text-white">0</div>
-                        <div class="text-[10px] uppercase tracking-wider text-gray-400">Videos</div>
-                    </div>
-                    <div>
-                        <div id="user-total-likes" class="font-black text-lg text-pink-500">0</div>
-                        <div class="text-[10px] uppercase tracking-wider text-gray-400">Likes</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- TOP CREATORS -->
-            <div class="flex-1 flex flex-col">
-                <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-4 flex items-center gap-2">
-                    <i class="fa-solid fa-fire text-pink-500"></i> Top Creators
-                </h3>
-                <div id="top-creators-list" class="space-y-3 overflow-y-auto custom-scroll pr-1 flex-1">
-                    <!-- Dynamic Creators -->
-                </div>
-            </div>
-
-            <!-- FOOTER INFO -->
-            <div class="text-xs text-gray-600 space-y-1">
-                <p>JaxTok Platform &copy; 2026</p>
-                <p>Built for instant video sharing</p>
-            </div>
-        </aside>
-
-        <!-- MOBILE BOTTOM NAV -->
-        <div class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#0b0e14]/90 backdrop-blur-md border-t border-gray-800 flex justify-around items-center z-40 px-4">
-            <button onclick="switchTab('feed')" class="flex flex-col items-center gap-1 text-pink-500">
-                <i class="fa-solid fa-house text-xl"></i>
-                <span class="text-[10px]">Feed</span>
-            </button>
-            <button onclick="document.getElementById('open-create-modal-btn').click()" class="w-12 h-8 rounded-lg bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 flex items-center justify-center text-white shadow-md">
-                <i class="fa-solid fa-plus font-bold"></i>
-            </button>
-            <button onclick="openProfileModal()" class="flex flex-col items-center gap-1 text-gray-400">
-                <i class="fa-solid fa-user text-xl"></i>
-                <span class="text-[10px]">Profile</span>
-            </button>
+            </main>
         </div>
-    </div>
 
-    <!-- ================= MODALS & OVERLAYS ================= -->
-
-    <!-- AUTH MODAL -->
-    <div id="auth-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-lg flex items-center justify-center p-4">
-        <div class="glass-panel w-full max-w-md p-8 rounded-3xl border border-gray-800 relative overflow-hidden shadow-2xl">
-            <div class="text-center space-y-2 mb-8">
-                <div class="w-16 h-16 bg-gradient-to-tr from-pink-500 to-cyan-400 rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-pink-500/30 mb-4">
-                    <i class="fa-solid fa-play text-white text-2xl"></i>
-                </div>
-                <h2 class="text-3xl font-extrabold tracking-tight">Welcome to <span class="rainbow-text">JaxTok</span></h2>
-                <p class="text-sm text-gray-400">Join the community, share short videos & connect!</p>
-            </div>
-
-            <!-- AUTH ERROR ALERT -->
-            <div id="auth-error" class="hidden mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center font-medium"></div>
-
-            <!-- FORM -->
-            <form id="auth-form" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Email Address</label>
-                    <input type="email" id="auth-email" required placeholder="name@domain.com" class="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-800 text-white focus:outline-none focus:border-pink-500 transition">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Password</label>
-                    <input type="password" id="auth-password" required placeholder="••••••••" class="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-800 text-white focus:outline-none focus:border-pink-500 transition">
-                </div>
-                <div id="name-field" class="hidden">
-                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Display Name</label>
-                    <input type="text" id="auth-name" placeholder="Creator Name" class="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-800 text-white focus:outline-none focus:border-pink-500 transition">
+        <!-- UPLOAD / RECORD MODAL -->
+        <div id="upload-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+            <div class="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative flex flex-col max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-video text-pink-500"></i> Create New Video
+                    </h2>
+                    <button onclick="closeUploadModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
                 </div>
 
-                <button type="submit" id="auth-submit-btn" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-pink-500 to-cyan-500 text-white font-bold shadow-lg shadow-pink-500/25 hover:opacity-90 transition mt-2">
-                    Sign In
-                </button>
-            </form>
+                <!-- Mode Tabs -->
+                <div class="flex bg-slate-950 p-1 rounded-xl mb-4 border border-slate-800">
+                    <button onclick="switchUploadTab('file')" id="tab-file-btn" class="flex-1 py-2 text-xs font-semibold rounded-lg bg-slate-800 text-white transition-all">Upload File</button>
+                    <button onclick="switchUploadTab('record')" id="tab-record-btn" class="flex-1 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all">Record Webcam</button>
+                </div>
 
-            <div class="mt-6 text-center">
-                <button id="toggle-auth-mode" class="text-xs text-gray-400 hover:text-white transition">
-                    Need an account? <span class="text-pink-500 font-semibold underline">Sign Up</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- CREATE / RECORD MODAL -->
-    <div id="create-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
-        <div class="glass-panel w-full max-w-lg p-6 rounded-3xl border border-gray-800 relative flex flex-col max-h-[90vh] overflow-hidden">
-            <div class="flex justify-between items-center pb-4 border-b border-gray-800 mb-4">
-                <h3 class="text-lg font-bold flex items-center gap-2">
-                    <i class="fa-solid fa-video text-pink-500"></i> Create New Video
-                </h3>
-                <button onclick="closeCreateModal()" class="w-8 h-8 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-400 hover:text-white">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-
-            <!-- MODAL TABS: UPLOAD vs WEBCAM -->
-            <div class="grid grid-cols-2 gap-2 bg-gray-900 p-1 rounded-xl mb-4 border border-gray-800">
-                <button id="tab-btn-file" onclick="switchCreateTab('file')" class="py-2 text-xs font-bold rounded-lg bg-gray-800 text-white transition">
-                    Upload File
-                </button>
-                <button id="tab-btn-cam" onclick="switchCreateTab('cam')" class="py-2 text-xs font-bold rounded-lg text-gray-400 hover:text-white transition">
-                    Record Webcam
-                </button>
-            </div>
-
-            <!-- TAB 1: FILE UPLOAD -->
-            <div id="create-tab-file" class="space-y-4 flex-1 overflow-y-auto custom-scroll">
-                <div id="drop-zone" class="border-2 border-dashed border-gray-700 hover:border-pink-500 rounded-2xl p-8 text-center cursor-pointer transition flex flex-col items-center justify-center gap-3 bg-gray-900/40">
-                    <i class="fa-solid fa-cloud-arrow-up text-4xl text-gray-500"></i>
-                    <div>
-                        <p class="font-semibold text-sm">Drag & Drop Video Here</p>
-                        <p class="text-xs text-gray-500 mt-1">Supports MP4, WebM, MOV</p>
+                <!-- File Upload Section -->
+                <div id="section-file" class="space-y-4">
+                    <div id="drop-zone" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)"
+                        class="border-2 border-dashed border-slate-700 hover:border-pink-500 bg-slate-950/50 rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center">
+                        <div class="w-12 h-12 rounded-full bg-pink-500/10 text-pink-400 flex items-center justify-center text-xl mb-3">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                        </div>
+                        <p class="text-sm font-medium text-slate-200">Drag & drop your video here</p>
+                        <p class="text-xs text-slate-500 mt-1">MP4, WebM or MOV up to 50MB</p>
+                        <label class="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl cursor-pointer transition-colors">
+                            Browse Files
+                            <input type="file" id="video-file-input" accept="video/mp4,video/webm,video/quicktime" class="hidden" onchange="handleFileSelected(this)">
+                        </label>
                     </div>
-                    <input type="file" id="video-file-input" accept="video/*" class="hidden">
-                    <button onclick="document.getElementById('video-file-input').click()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-xs font-bold rounded-xl border border-gray-700">
-                        Browse Computer
+                </div>
+
+                <!-- Webcam Recording Section -->
+                <div id="section-record" class="space-y-4 hidden">
+                    <div class="relative bg-slate-950 rounded-2xl overflow-hidden aspect-[9/16] max-h-80 flex items-center justify-center border border-slate-800">
+                        <video id="webcam-preview" autoplay muted playsinline class="w-full h-full object-cover"></video>
+                        <div id="recording-timer" class="absolute top-3 left-3 bg-red-500/80 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-xs font-bold hidden items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-white animate-ping"></span> REC <span id="timer-display">00:00</span>
+                        </div>
+                    </div>
+                    <div class="flex justify-center gap-3">
+                        <button type="button" id="start-cam-btn" onclick="startWebcam()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-colors">
+                            <i class="fa-solid fa-camera mr-1"></i> Start Camera
+                        </button>
+                        <button type="button" id="rec-btn" onclick="toggleRecording()" disabled class="px-4 py-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-colors">
+                            <i class="fa-solid fa-circle mr-1"></i> Start Recording
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Video Preview / Details Form -->
+                <div id="section-details" class="space-y-4 mt-4 hidden">
+                    <div class="flex items-center gap-3 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <video id="selected-video-preview" class="w-16 h-16 rounded-lg object-cover bg-black"></video>
+                        <div class="flex-1 min-w-0">
+                            <p id="selected-filename" class="text-xs font-medium text-slate-200 truncate">video.mp4</p>
+                            <p class="text-xs text-slate-500 mt-0.5">Ready to publish</p>
+                        </div>
+                        <button onclick="resetSelectedVideo()" class="text-slate-400 hover:text-red-400 text-xs p-2">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Caption</label>
+                        <textarea id="video-caption-input" rows="2" placeholder="Write an awesome caption... #fyp"
+                            class="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 resize-none"></textarea>
+                    </div>
+
+                    <button onclick="publishVideo()" id="publish-btn"
+                        class="w-full py-3 bg-gradient-to-r from-pink-500 to-cyan-500 hover:from-pink-600 hover:to-cyan-600 text-white font-semibold rounded-xl text-sm shadow-lg shadow-pink-500/25 transition-all">
+                        Publish Video
                     </button>
                 </div>
             </div>
-
-            <!-- TAB 2: WEBCAM RECORDER -->
-            <div id="create-tab-cam" class="hidden space-y-4 flex-1 flex flex-col">
-                <div class="relative w-full bg-black rounded-2xl overflow-hidden aspect-[9/16] max-h-[300px] flex items-center justify-center border border-gray-800">
-                    <video id="webcam-preview" autoplay playsinline muted class="w-full h-full object-cover"></video>
-                    <div id="rec-badge" class="hidden absolute top-3 left-3 bg-red-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 recording-pulse">
-                        <span class="w-2 h-2 rounded-full bg-white"></span> REC
-                    </div>
-                </div>
-                <div class="flex justify-center gap-4">
-                    <button id="start-rec-btn" onclick="startWebcamRecording()" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl flex items-center gap-2">
-                        <i class="fa-solid fa-circle"></i> Start Recording
-                    </button>
-                    <button id="stop-rec-btn" onclick="stopWebcamRecording()" disabled class="px-4 py-2 bg-gray-800 opacity-50 text-white text-xs font-bold rounded-xl flex items-center gap-2">
-                        <i class="fa-solid fa-square"></i> Stop
-                    </button>
-                </div>
-            </div>
-
-            <!-- PREVIEW & CAPTION SECTION -->
-            <div id="upload-details" class="hidden space-y-4 mt-4 border-t border-gray-800 pt-4">
-                <video id="selected-video-preview" controls class="w-full max-h-36 bg-black rounded-xl object-contain"></video>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Caption</label>
-                    <input type="text" id="video-caption" placeholder="Write a catchy caption... #jaxtok" class="w-full px-4 py-2.5 rounded-xl bg-gray-900 border border-gray-800 text-white text-sm focus:outline-none focus:border-pink-500">
-                </div>
-                <button id="publish-btn" onclick="uploadVideo()" class="w-full py-3 bg-gradient-to-r from-pink-500 to-cyan-500 font-bold rounded-xl text-white shadow-lg shadow-pink-500/20 hover:opacity-90 transition">
-                    Publish Video
-                </button>
-            </div>
         </div>
+
     </div>
 
-    <!-- PROFILE MODAL -->
-    <div id="profile-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
-        <div class="glass-panel w-full max-w-md p-6 rounded-3xl border border-gray-800 relative">
-            <button onclick="closeProfileModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-400 hover:text-white">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-            
-            <div class="text-center space-y-3">
-                <div id="profile-modal-avatar" class="w-20 h-20 rounded-full bg-gradient-to-tr from-pink-500 to-cyan-400 mx-auto flex items-center justify-center font-black text-white text-2xl shadow-xl shadow-pink-500/20">
-                    U
-                </div>
-                <div>
-                    <h3 id="profile-modal-name" class="text-xl font-bold">User</h3>
-                    <p id="profile-modal-email" class="text-xs text-gray-400">user@email.com</p>
-                </div>
-                <div class="inline-block bg-pink-500/10 text-pink-400 text-xs font-semibold px-3 py-1 rounded-full border border-pink-500/20">
-                    Verified Creator
-                </div>
-            </div>
+    <!-- APPLICATION LOGIC -->
+    <script>
+        // --- INDEXEDDB STORAGE ENGINE (Bypasses Firestore 1MB Limit) ---
+        const DB_NAME = 'JaxTokDB';
+        const DB_VERSION = 1;
+        const STORE_VIDEOS = 'videos';
+        const STORE_USERS = 'users';
 
-            <div class="grid grid-cols-2 gap-4 mt-6">
-                <div class="bg-gray-900/80 p-4 rounded-2xl border border-gray-800 text-center">
-                    <div id="profile-modal-videos" class="text-2xl font-black text-white">0</div>
-                    <div class="text-xs text-gray-400 font-medium">Uploaded Videos</div>
-                </div>
-                <div class="bg-gray-900/80 p-4 rounded-2xl border border-gray-800 text-center">
-                    <div id="profile-modal-likes" class="text-2xl font-black text-pink-500">0</div>
-                    <div class="text-xs text-gray-400 font-medium">Total Likes</div>
-                </div>
-            </div>
-
-            <button onclick="auth.signOut(); closeProfileModal();" class="w-full mt-6 py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 font-bold text-sm transition">
-                Sign Out
-            </button>
-        </div>
-    </div>
-
-    <!-- FIREBASE MODULE SCRIPTS -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { 
-            getAuth, 
-            signInWithEmailAndPassword, 
-            createUserWithEmailAndPassword, 
-            updateProfile, 
-            onAuthStateChanged,
-            signOut 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { 
-            getFirestore, 
-            collection, 
-            doc, 
-            setDoc, 
-            getDoc, 
-            getDocs, 
-            onSnapshot, 
-            updateDoc, 
-            arrayUnion, 
-            arrayRemove, 
-            increment 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // FIREBASE CONFIGURATION
-        const firebaseConfig = {
-            apiKey: "AIzaSyD3bDtn08nYig22ZP995AiLo5U-OkOS6kA",
-            authDomain: "jaxtok-server.firebaseapp.com",
-            projectId: "jaxtok-server",
-            storageBucket: "jaxtok-server.firebasestorage.app",
-            messagingSenderId: "987900869039",
-            appId: "1:987900869039:web:eaedb6573cc1cb9b60d75a"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        // Global State
+        let db = null;
         let currentUser = null;
-        let isSignUp = false;
-        let pendingVideoData = null; // Data URL of video
+        let isSignUpMode = false;
+        let activeVideoBlob = null;
         let mediaRecorder = null;
         let recordedChunks = [];
+        let recordingInterval = null;
+        let recordingSeconds = 0;
         let webcamStream = null;
 
-        // Make auth globally available for inline onclicks
-        window.auth = auth;
-
-        // APP INIT
-        window.addEventListener('DOMContentLoaded', () => {
-            setupAuthHandlers();
-            setupCreateModalHandlers();
-        });
-
-        // 1. AUTHENTICATION LOGIC
-        function setupAuthHandlers() {
-            const authModal = document.getElementById('auth-modal');
-            const authForm = document.getElementById('auth-form');
-            const authTitle = authModal.querySelector('h2');
-            const nameField = document.getElementById('name-field');
-            const authSubmitBtn = document.getElementById('auth-submit-btn');
-            const toggleBtn = document.getElementById('toggle-auth-mode');
-            const authError = document.getElementById('auth-error');
-
-            // Toggle Mode (Sign In vs Sign Up)
-            toggleBtn.addEventListener('click', () => {
-                isSignUp = !isSignUp;
-                authError.classList.add('hidden');
-                if (isSignUp) {
-                    nameField.classList.remove('hidden');
-                    authSubmitBtn.textContent = 'Create Account';
-                    toggleBtn.innerHTML = 'Already have an account? <span class="text-pink-500 font-semibold underline">Sign In</span>';
-                } else {
-                    nameField.classList.add('hidden');
-                    authSubmitBtn.textContent = 'Sign In';
-                    toggleBtn.innerHTML = 'Need an account? <span class="text-pink-500 font-semibold underline">Sign Up</span>';
-                }
-            });
-
-            // Form Submit
-            authForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                authError.classList.add('hidden');
-                const email = document.getElementById('auth-email').value;
-                const password = document.getElementById('auth-password').value;
-                const displayName = document.getElementById('auth-name').value || email.split('@')[0];
-
-                try {
-                    if (isSignUp) {
-                        const res = await createUserWithEmailAndPassword(auth, email, password);
-                        await updateProfile(res.user, { displayName });
-                        // Save user doc to Firestore
-                        const userDocRef = doc(db, 'artifacts', 'jaxtok', 'public', 'data', 'users', res.user.uid);
-                        await setDoc(userDocRef, {
-                            uid: res.user.uid,
-                            displayName: displayName,
-                            email: email,
-                            videoCount: 0,
-                            totalLikes: 0,
-                            createdAt: Date.now()
-                        });
-                    } else {
-                        await signInWithEmailAndPassword(auth, email, password);
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onerror = (e) => reject(e);
+                request.onsuccess = (e) => {
+                    db = e.target.result;
+                    resolve(db);
+                };
+                request.onupgradeneeded = (e) => {
+                    const database = e.target.result;
+                    if (!database.objectStoreNames.contains(STORE_VIDEOS)) {
+                        database.createObjectStore(STORE_VIDEOS, { keyPath: 'id', autoIncrement: true });
                     }
-                } catch (err) {
-                    authError.textContent = err.message.replace('Firebase: ', '');
-                    authError.classList.remove('hidden');
-                }
-            });
-
-            // Logout
-            document.getElementById('logout-btn').addEventListener('click', () => {
-                signOut(auth);
-            });
-
-            // Auth State Listener
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    currentUser = user;
-                    authModal.classList.add('hidden');
-                    updateUserUI(user);
-                    listenToVideos();
-                    listenToCreators();
-                    ensureUserDoc(user);
-                } else {
-                    currentUser = null;
-                    authModal.classList.remove('hidden');
-                }
+                    if (!database.objectStoreNames.contains(STORE_USERS)) {
+                        database.createObjectStore(STORE_USERS, { keyPath: 'email' });
+                    }
+                };
             });
         }
 
-        async function ensureUserDoc(user) {
-            const userDocRef = doc(db, 'artifacts', 'jaxtok', 'public', 'data', 'users', user.uid);
-            const snap = await getDoc(userDocRef);
-            if (!snap.exists()) {
-                await setDoc(userDocRef, {
-                    uid: user.uid,
-                    displayName: user.displayName || user.email.split('@')[0],
-                    email: user.email,
-                    videoCount: 0,
-                    totalLikes: 0,
-                    createdAt: Date.now()
-                });
+        // --- TOAST NOTIFICATION ---
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bg = type === 'error' ? 'bg-red-600' : 'bg-slate-800 border border-slate-700';
+            toast.className = `${bg} text-white px-4 py-3 rounded-xl shadow-2xl text-xs font-semibold flex items-center gap-2 pointer-events-auto transition-all transform translate-y-2 opacity-0`;
+            toast.innerHTML = `<i class="fa-solid ${type === 'error' ? 'fa-circle-exclamation text-white' : 'fa-circle-check text-pink-400'}"></i> ${message}`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // --- AUTHENTICATION ---
+        function toggleAuthMode() {
+            isSignUpMode = !isSignUpMode;
+            document.getElementById('auth-subtitle').innerText = isSignUpMode ? 'Create a new account to join JaxTok' : 'Sign in or create an account to access the video feed';
+            document.getElementById('auth-submit-btn').innerText = isSignUpMode ? 'Create Account' : 'Sign In';
+            document.getElementById('auth-toggle-btn').innerHTML = isSignUpMode ? 
+                'Already have an account? <span class="text-pink-400 font-semibold underline">Sign In</span>' : 
+                'Don\'t have an account? <span class="text-pink-400 font-semibold underline">Create one</span>';
+        }
+
+        async function handleAuthSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value;
+
+            try {
+                const tx = db.transaction(STORE_USERS, 'readwrite');
+                const store = tx.objectStore(STORE_USERS);
+                
+                if (isSignUpMode) {
+                    store.get(email).onsuccess = (event) => {
+                        if (event.target.result) {
+                            showToast('Email already registered. Please sign in.', 'error');
+                        } else {
+                            store.add({ email, password, createdAt: new Date().toISOString() });
+                            loginSuccess(email);
+                            showToast('Account created successfully!');
+                        }
+                    };
+                } else {
+                    store.get(email).onsuccess = (event) => {
+                        const user = event.target.result;
+                        if (!user || user.password !== password) {
+                            showToast('Invalid email or password.', 'error');
+                        } else {
+                            loginSuccess(email);
+                            showToast('Welcome back, ' + email);
+                        }
+                    };
+                }
+            } catch (err) {
+                showToast('Authentication error.', 'error');
             }
         }
 
-        function updateUserUI(user) {
-            const name = user.displayName || user.email.split('@')[0];
-            const initial = name.charAt(0).toUpperCase();
-
-            document.getElementById('user-display-name').textContent = name;
-            document.getElementById('user-handle').textContent = `@${name.toLowerCase().replace(/\s+/g, '')}`;
-            document.getElementById('user-avatar').textContent = initial;
-
-            document.getElementById('stats-avatar').textContent = initial;
-            document.getElementById('stats-name').textContent = name;
-            document.getElementById('stats-email').textContent = user.email;
-
-            document.getElementById('profile-modal-avatar').textContent = initial;
-            document.getElementById('profile-modal-name').textContent = name;
-            document.getElementById('profile-modal-email').textContent = user.email;
+        function loginSuccess(email) {
+            currentUser = email;
+            localStorage.setItem('jaxtok_user', email);
+            document.getElementById('auth-gate').classList.add('hidden');
+            document.getElementById('main-dashboard').classList.remove('hidden');
+            document.getElementById('user-display-email').innerText = email;
+            loadFeed();
         }
 
-        // 2. REALTIME FIRESTORE LISTENER (VIDEOS & CREATORS)
-        function listenToVideos() {
-            const videosRef = collection(db, 'artifacts', 'jaxtok', 'public', 'data', 'videos');
+        function logoutUser() {
+            currentUser = null;
+            localStorage.removeItem('jaxtok_user');
+            document.getElementById('main-dashboard').classList.add('hidden');
+            document.getElementById('auth-gate').classList.remove('hidden');
+            document.getElementById('auth-form').reset();
+            stopWebcam();
+        }
+
+        // --- UPLOAD / MODAL CONTROLS ---
+        function openUploadModal() {
+            document.getElementById('upload-modal').classList.remove('hidden');
+            switchUploadTab('file');
+        }
+
+        function closeUploadModal() {
+            document.getElementById('upload-modal').classList.add('hidden');
+            stopWebcam();
+            resetSelectedVideo();
+        }
+
+        function switchUploadTab(mode) {
+            const fileBtn = document.getElementById('tab-file-btn');
+            const recordBtn = document.getElementById('tab-record-btn');
+            const sectionFile = document.getElementById('section-file');
+            const sectionRecord = document.getElementById('section-record');
+
+            if (mode === 'file') {
+                fileBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-lg bg-slate-800 text-white transition-all';
+                recordBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
+                sectionFile.classList.remove('hidden');
+                sectionRecord.classList.add('hidden');
+                stopWebcam();
+            } else {
+                recordBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-lg bg-slate-800 text-white transition-all';
+                fileBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
+                sectionRecord.classList.remove('hidden');
+                sectionFile.classList.add('hidden');
+            }
+        }
+
+        // --- FILE DRAG & DROP & SELECT ---
+        function handleDragOver(e) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('border-pink-500', 'bg-pink-500/5'); }
+        function handleDragLeave(e) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('border-pink-500', 'bg-pink-500/5'); }
+        function handleDrop(e) {
+            e.preventDefault(); e.stopPropagation();
+            e.currentTarget.classList.remove('border-pink-500', 'bg-pink-500/5');
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type.startsWith('video/')) {
+                processVideoBlob(files[0], files[0].name);
+            } else {
+                showToast('Please drop a valid video file.', 'error');
+            }
+        }
+        function handleFileSelected(input) {
+            if (input.files.length > 0) {
+                processVideoBlob(input.files[0], input.files[0].name);
+            }
+        }
+
+        function processVideoBlob(blob, filename) {
+            activeVideoBlob = blob;
+            document.getElementById('section-file').classList.add('hidden');
+            document.getElementById('section-record').classList.add('hidden');
+            document.getElementById('section-details').classList.remove('hidden');
             
-            onSnapshot(videosRef, (snapshot) => {
-                const videoFeed = document.getElementById('video-feed');
-                const emptyFeed = document.getElementById('empty-feed');
-                
-                const videos = [];
-                let myLikesCount = 0;
-                let myVideoCount = 0;
+            const previewVideo = document.getElementById('selected-video-preview');
+            previewVideo.src = URL.createObjectURL(blob);
+            document.getElementById('selected-filename').innerText = filename;
+        }
 
-                snapshot.forEach(docSnap => {
-                    const data = docSnap.data();
-                    videos.push({ id: docSnap.id, ...data });
+        function resetSelectedVideo() {
+            activeVideoBlob = null;
+            document.getElementById('video-caption-input').value = '';
+            document.getElementById('section-details').classList.add('hidden');
+            document.getElementById('section-file').classList.remove('hidden');
+            if (document.getElementById('tab-record-btn').classList.contains('bg-slate-800')) {
+                switchUploadTab('record');
+            }
+        }
 
-                    if (currentUser && data.userId === currentUser.uid) {
-                        myVideoCount++;
-                        myLikesCount += (data.likes ? data.likes.length : 0);
-                    }
-                });
+        // --- WEBCAM RECORDING ---
+        async function startWebcam() {
+            try {
+                webcamStream = await navigator.mediaDevices.getUserMedia({ video: { width: 720, height: 1280 }, audio: true });
+                const videoEl = document.getElementById('webcam-preview');
+                videoEl.srcObject = webcamStream;
+                document.getElementById('start-cam-btn').classList.add('hidden');
+                document.getElementById('rec-btn').disabled = false;
+            } catch (err) {
+                showToast('Unable to access webcam/microphone.', 'error');
+            }
+        }
 
-                // Update User Stats
-                document.getElementById('user-video-count').textContent = myVideoCount;
-                document.getElementById('user-total-likes').textContent = myLikesCount;
-                document.getElementById('profile-modal-videos').textContent = myVideoCount;
-                document.getElementById('profile-modal-likes').textContent = myLikesCount;
+        function stopWebcam() {
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(track => track.stop());
+                webcamStream = null;
+            }
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            clearInterval(recordingInterval);
+            document.getElementById('start-cam-btn').classList.remove('hidden');
+            document.getElementById('rec-btn').disabled = true;
+            document.getElementById('rec-btn').innerHTML = '<i class="fa-solid fa-circle mr-1"></i> Start Recording';
+            document.getElementById('recording-timer').classList.add('hidden');
+        }
 
-                if (videos.length === 0) {
-                    videoFeed.innerHTML = '';
-                    emptyFeed.classList.remove('hidden');
-                } else {
-                    emptyFeed.classList.add('hidden');
-                    // Sort newest first
-                    videos.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-                    renderFeed(videos);
+        function toggleRecording() {
+            const recBtn = document.getElementById('rec-btn');
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+                recordedChunks = [];
+                try {
+                    mediaRecorder = new MediaRecorder(webcamStream, { mimeType: 'video/webm;codecs=vp8,opus' });
+                } catch (e) {
+                    try { mediaRecorder = new MediaRecorder(webcamStream, { mimeType: 'video/webm' }); }
+                    catch (err) { mediaRecorder = new MediaRecorder(webcamStream); }
                 }
-            }, (error) => {
-                console.error("Firestore video sync error:", error);
-            });
+
+                mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    processVideoBlob(blob, 'webcam_recording.webm');
+                    stopWebcam();
+                };
+
+                mediaRecorder.start();
+                recBtn.innerHTML = '<i class="fa-solid fa-stop mr-1"></i> Stop Recording';
+                recBtn.className = 'px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded-xl transition-colors';
+                
+                recordingSeconds = 0;
+                document.getElementById('recording-timer').classList.remove('hidden');
+                document.getElementById('timer-display').innerText = '00:00';
+                recordingInterval = setInterval(() => {
+                    recordingSeconds++;
+                    const m = String(Math.floor(recordingSeconds / 60)).padStart(2, '0');
+                    const s = String(recordingSeconds % 60).padStart(2, '0');
+                    document.getElementById('timer-display').innerText = `${m}:${s}`;
+                }, 1000);
+
+            } else {
+                mediaRecorder.stop();
+                clearInterval(recordingInterval);
+            }
         }
 
-        function listenToCreators() {
-            const usersRef = collection(db, 'artifacts', 'jaxtok', 'public', 'data', 'users');
-            onSnapshot(usersRef, (snapshot) => {
-                const creatorsList = document.getElementById('top-creators-list');
-                creatorsList.innerHTML = '';
+        // --- PUBLISH VIDEO ---
+        async function publishVideo() {
+            if (!activeVideoBlob) return;
+            const caption = document.getElementById('video-caption-input').value.trim() || 'No caption';
+            const btn = document.getElementById('publish-btn');
+            btn.disabled = true;
+            btn.innerText = 'Publishing...';
 
-                const creators = [];
-                snapshot.forEach(docSnap => creators.push(docSnap.data()));
+            const videoRecord = {
+                author: currentUser,
+                caption: caption,
+                blob: activeVideoBlob,
+                likes: 0,
+                likedBy: [],
+                comments: [],
+                createdAt: new Date().toISOString()
+            };
 
-                creators.forEach(creator => {
+            const tx = db.transaction(STORE_VIDEOS, 'readwrite');
+            const store = tx.objectStore(STORE_VIDEOS);
+            store.add(videoRecord);
+
+            tx.oncomplete = () => {
+                showToast('Video published successfully!');
+                btn.disabled = false;
+                btn.innerText = 'Publish Video';
+                closeUploadModal();
+                loadFeed();
+            };
+
+            tx.onerror = () => {
+                showToast('Failed to publish video.', 'error');
+                btn.disabled = false;
+                btn.innerText = 'Publish Video';
+            };
+        }
+
+        // --- FEED RENDERING & INTERACTIONS ---
+        async function loadFeed() {
+            const container = document.getElementById('feed-container');
+            const emptyState = document.getElementById('empty-feed');
+            container.innerHTML = '';
+
+            const tx = db.transaction(STORE_VIDEOS, 'readonly');
+            const store = tx.objectStore(STORE_VIDEOS);
+            const request = store.getAll();
+
+            request.onsuccess = (e) => {
+                const videos = e.target.result.reverse(); // Newest first
+                if (videos.length === 0) {
+                    emptyState.classList.remove('hidden');
+                    return;
+                }
+                emptyState.classList.add('hidden');
+
+                videos.forEach((video) => {
+                    const videoUrl = URL.createObjectURL(video.blob);
+                    const isLiked = video.likedBy && video.likedBy.includes(currentUser);
+
                     const card = document.createElement('div');
-                    card.className = 'flex items-center justify-between p-2 rounded-xl bg-gray-900/40 hover:bg-gray-800/50 transition border border-gray-800/50';
+                    card.className = 'w-full h-full snap-start relative bg-black flex items-center justify-center overflow-hidden';
                     card.innerHTML = `
-                        <div class="flex items-center gap-3 overflow-hidden">
-                            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-pink-500 flex items-center justify-center font-bold text-xs text-white shrink-0">
-                                ${(creator.displayName || 'U').charAt(0).toUpperCase()}
-                            </div>
-                            <div class="truncate">
-                                <h4 class="font-bold text-xs truncate">${creator.displayName || 'User'}</h4>
-                                <p class="text-[10px] text-gray-500 truncate">${creator.videoCount || 0} videos</p>
-                            </div>
-                        </div>
-                        <span class="text-xs font-bold text-pink-500 flex items-center gap-1">
-                            <i class="fa-solid fa-heart text-[10px]"></i> ${creator.totalLikes || 0}
-                        </span>
-                    `;
-                    creatorsList.appendChild(card);
-                });
-            }, (err) => console.error("Creators sync error:", err));
-        }
+                        <video src="${videoUrl}" loop playsinline class="w-full h-full object-cover cursor-pointer" onclick="togglePlayPause(this)"></video>
+                        
+                        <!-- Video Overlay Gradients -->
+                        <div class="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/60 to-transparent pointer-events-none"></div>
+                        <div class="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none"></div>
 
-        // 3. RENDER FEED
-        function renderFeed(videos) {
-            const videoFeed = document.getElementById('video-feed');
-            videoFeed.innerHTML = '';
-
-            videos.forEach((video) => {
-                const isLiked = currentUser && video.likes && video.likes.includes(currentUser.uid);
-                const likesCount = video.likes ? video.likes.length : 0;
-
-                const card = document.createElement('div');
-                card.className = 'video-card relative w-full bg-black rounded-3xl overflow-hidden mb-4 border border-gray-800 flex items-center justify-center shadow-2xl';
-                card.innerHTML = `
-                    <video src="${video.videoUrl}" loop playsinline class="w-full h-full object-cover cursor-pointer" onclick="togglePlay(this)"></video>
-                    
-                    <!-- OVERLAY INFORMATION -->
-                    <div class="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex justify-between items-end pointer-events-none">
-                        <div class="space-y-2 max-w-[75%] pointer-events-auto">
-                            <div class="flex items-center gap-2">
-                                <div class="w-8 h-8 rounded-full bg-pink-500 flex items-center justify-center font-bold text-xs text-white">
-                                    ${(video.userName || 'U').charAt(0).toUpperCase()}
+                        <!-- Right Sidebar Action Buttons -->
+                        <div class="absolute right-4 bottom-24 flex flex-col items-center gap-5 z-20">
+                            <!-- Author Avatar -->
+                            <div class="relative">
+                                <div class="w-11 h-11 rounded-full bg-gradient-to-tr from-pink-500 to-cyan-400 p-0.5 flex items-center justify-center shadow-lg">
+                                    <div class="w-full h-full bg-slate-900 rounded-full flex items-center justify-center font-bold text-xs text-white">
+                                        ${video.author.charAt(0).toUpperCase()}
+                                    </div>
                                 </div>
-                                <span class="font-bold text-sm text-white drop-shadow">@${(video.userName || 'user').toLowerCase().replace(/\s+/g, '')}</span>
                             </div>
-                            <p class="text-sm text-gray-200 drop-shadow line-clamp-2">${video.caption || ''}</p>
-                        </div>
 
-                        <!-- RIGHT ACTION BUTTONS -->
-                        <div class="flex flex-col items-center gap-4 pointer-events-auto">
-                            <button onclick="toggleLike('${video.id}', ${isLiked})" class="flex flex-col items-center gap-1 text-white group">
-                                <div class="w-12 h-12 rounded-full ${isLiked ? 'bg-pink-500/20 text-pink-500 border-pink-500' : 'bg-gray-900/80 text-white border-gray-700'} border flex items-center justify-center text-xl transition-all transform group-active:scale-125">
-                                    <i class="fa-solid fa-heart ${isLiked ? 'text-pink-500' : ''}"></i>
+                            <!-- Like Button -->
+                            <button onclick="toggleLike(${video.id})" class="flex flex-col items-center gap-1 group">
+                                <div class="w-11 h-11 rounded-full bg-slate-900/60 backdrop-blur-md flex items-center justify-center text-xl transition-transform transform active:scale-125 ${isLiked ? 'text-pink-500' : 'text-white hover:bg-slate-800/80'}">
+                                    <i class="fa-${isLiked ? 'solid' : 'regular'} fa-heart"></i>
                                 </div>
-                                <span class="text-xs font-bold drop-shadow">${likesCount}</span>
+                                <span class="text-xs font-semibold text-white drop-shadow">${video.likes || 0}</span>
                             </button>
 
-                            <button class="flex flex-col items-center gap-1 text-white group">
-                                <div class="w-12 h-12 rounded-full bg-gray-900/80 border border-gray-700 flex items-center justify-center text-xl text-white">
+                            <!-- Comment Button -->
+                            <button onclick="openComments(${video.id})" class="flex flex-col items-center gap-1 group">
+                                <div class="w-11 h-11 rounded-full bg-slate-900/60 backdrop-blur-md flex items-center justify-center text-lg text-white hover:bg-slate-800/80 transition-transform transform active:scale-125">
                                     <i class="fa-solid fa-comment-dots"></i>
                                 </div>
-                                <span class="text-xs font-bold drop-shadow">0</span>
+                                <span class="text-xs font-semibold text-white drop-shadow">${(video.comments || []).length}</span>
                             </button>
 
-                            <button onclick="copyVideoLink('${video.id}')" class="flex flex-col items-center gap-1 text-white group">
-                                <div class="w-12 h-12 rounded-full bg-gray-900/80 border border-gray-700 flex items-center justify-center text-xl text-white">
+                            <!-- Share Button -->
+                            <button onclick="shareVideo(${video.id})" class="flex flex-col items-center gap-1 group">
+                                <div class="w-11 h-11 rounded-full bg-slate-900/60 backdrop-blur-md flex items-center justify-center text-lg text-white hover:bg-slate-800/80 transition-transform transform active:scale-125">
                                     <i class="fa-solid fa-share"></i>
                                 </div>
-                                <span class="text-xs font-bold drop-shadow">Share</span>
+                                <span class="text-xs font-semibold text-white drop-shadow">Share</span>
                             </button>
                         </div>
-                    </div>
-                `;
-                videoFeed.appendChild(card);
-            });
 
-            // Autoplay observer for scrolling
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    const video = entry.target.querySelector('video');
-                    if (video) {
-                        if (entry.isIntersecting) {
-                            video.play().catch(e => console.log('Autoplay prevented', e));
-                        } else {
-                            video.pause();
-                        }
-                    }
+                        <!-- Bottom Metadata Overlay -->
+                        <div class="absolute left-4 bottom-6 right-20 z-20 pointer-events-auto">
+                            <h4 class="font-bold text-white text-sm drop-shadow mb-1">@${video.author.split('@')[0]}</h4>
+                            <p class="text-xs text-slate-200 drop-shadow line-clamp-2 leading-relaxed">${escapeHtml(video.caption)}</p>
+                        </div>
+                    `;
+                    container.appendChild(card);
                 });
-            }, { threshold: 0.6 });
 
-            document.querySelectorAll('.video-card').forEach(card => observer.observe(card));
+                setupIntersectionObserver();
+            };
         }
 
-        // Toggle Video Play/Pause
-        window.togglePlay = (videoEl) => {
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        function togglePlayPause(videoEl) {
             if (videoEl.paused) {
                 videoEl.play();
             } else {
                 videoEl.pause();
             }
-        };
+        }
 
-        // Like / Unlike Firestore Action
-        window.toggleLike = async (videoId, currentlyLiked) => {
-            if (!currentUser) return;
-            const videoRef = doc(db, 'artifacts', 'jaxtok', 'public', 'data', 'videos', videoId);
-            
-            try {
-                if (currentlyLiked) {
-                    await updateDoc(videoRef, {
-                        likes: arrayRemove(currentUser.uid)
-                    });
+        // --- INTERSECTION OBSERVER FOR AUTO PLAY/PAUSE ---
+        function setupIntersectionObserver() {
+            const container = document.getElementById('feed-container');
+            const videos = container.querySelectorAll('video');
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    const video = entry.target;
+                    if (entry.isIntersecting) {
+                        video.play().catch(() => {});
+                    } else {
+                        video.pause();
+                        video.currentTime = 0;
+                    }
+                });
+            }, { threshold: 0.6 });
+
+            videos.forEach(v => observer.observe(v));
+        }
+
+        // --- LIKES & COMMENTS LOGIC ---
+        function toggleLike(videoId) {
+            const tx = db.transaction(STORE_VIDEOS, 'readwrite');
+            const store = tx.objectStore(STORE_VIDEOS);
+            store.get(videoId).onsuccess = (e) => {
+                const video = e.target.result;
+                if (!video) return;
+
+                if (!video.likedBy) video.likedBy = [];
+                const index = video.likedBy.indexOf(currentUser);
+
+                if (index > -1) {
+                    video.likedBy.splice(index, 1);
+                    video.likes = Math.max(0, video.likes - 1);
                 } else {
-                    await updateDoc(videoRef, {
-                        likes: arrayUnion(currentUser.uid)
-                    });
+                    video.likedBy.push(currentUser);
+                    video.likes = (video.likes || 0) + 1;
                 }
-            } catch (err) {
-                console.error("Error toggling like:", err);
-            }
-        };
 
-        // Copy Share Link
-        window.copyVideoLink = () => {
-            const dummy = document.createElement('input');
-            document.body.appendChild(dummy);
-            dummy.value = window.location.href;
-            dummy.select();
-            document.execCommand('copy');
-            document.body.removeChild(dummy);
-            alert("JaxTok video link copied to clipboard!");
-        };
-
-        // 4. CREATE / RECORD MODAL LOGIC & FILE READER CONVERSION
-        function setupCreateModalHandlers() {
-            const openBtn = document.getElementById('open-create-modal-btn');
-            const modal = document.getElementById('create-modal');
-            const fileInput = document.getElementById('video-file-input');
-            const dropZone = document.getElementById('drop-zone');
-
-            openBtn.addEventListener('click', () => {
-                modal.classList.remove('hidden');
-            });
-
-            // Dropzone & File Select
-            dropZone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                dropZone.classList.add('border-pink-500');
-            });
-            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-pink-500'));
-            dropZone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                dropZone.classList.remove('border-pink-500');
-                if (e.dataTransfer.files.length) {
-                    handleFileSelect(e.dataTransfer.files[0]);
-                }
-            });
-
-            fileInput.addEventListener('change', (e) => {
-                if (e.target.files.length) {
-                    handleFileSelect(e.target.files[0]);
-                }
-            });
-        }
-
-        function handleFileSelect(file) {
-            if (!file.type.startsWith('video/')) {
-                alert('Please select a valid video file (.mp4, .webm, .mov)');
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                pendingVideoData = e.target.result;
-                showVideoPreview(pendingVideoData);
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function showVideoPreview(src) {
-            const preview = document.getElementById('selected-video-preview');
-            const uploadDetails = document.getElementById('upload-details');
-            preview.src = src;
-            uploadDetails.classList.remove('hidden');
-        }
-
-        // TAB SWITCHING IN CREATION MODAL
-        window.switchCreateTab = (tab) => {
-            const tabFile = document.getElementById('create-tab-file');
-            const tabCam = document.getElementById('create-tab-cam');
-            const btnFile = document.getElementById('tab-btn-file');
-            const btnCam = document.getElementById('tab-btn-cam');
-
-            if (tab === 'file') {
-                tabFile.classList.remove('hidden');
-                tabCam.classList.add('hidden');
-                btnFile.className = 'py-2 text-xs font-bold rounded-lg bg-gray-800 text-white transition';
-                btnCam.className = 'py-2 text-xs font-bold rounded-lg text-gray-400 hover:text-white transition';
-                stopWebcamStream();
-            } else {
-                tabFile.classList.add('hidden');
-                tabCam.classList.remove('hidden');
-                btnCam.className = 'py-2 text-xs font-bold rounded-lg bg-gray-800 text-white transition';
-                btnFile.className = 'py-2 text-xs font-bold rounded-lg text-gray-400 hover:text-white transition';
-                initWebcam();
-            }
-        };
-
-        // WEBCAM RECORDING LOGIC
-        async function initWebcam() {
-            try {
-                webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                const videoPreview = document.getElementById('webcam-preview');
-                videoPreview.srcObject = webcamStream;
-            } catch (err) {
-                alert('Unable to access webcam or microphone: ' + err.message);
-            }
-        }
-
-        function stopWebcamStream() {
-            if (webcamStream) {
-                webcamStream.getTracks().forEach(track => track.stop());
-                webcamStream = null;
-            }
-        }
-
-        window.startWebcamRecording = () => {
-            if (!webcamStream) return;
-            recordedChunks = [];
-            mediaRecorder = new MediaRecorder(webcamStream);
-
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) recordedChunks.push(e.data);
-            };
-
-            mediaRecorder.onstop = () => {
-                const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    pendingVideoData = e.target.result;
-                    showVideoPreview(pendingVideoData);
+                store.put(video).onsuccess = () => {
+                    loadFeed();
                 };
-                reader.readAsDataURL(blob);
             };
+        }
 
-            mediaRecorder.start();
-            document.getElementById('start-rec-btn').disabled = true;
-            document.getElementById('start-rec-btn').classList.add('opacity-50');
-            document.getElementById('stop-rec-btn').disabled = false;
-            document.getElementById('stop-rec-btn').classList.remove('opacity-50');
-            document.getElementById('rec-badge').classList.remove('hidden');
-        };
+        function shareVideo(videoId) {
+            const dummyUrl = window.location.href.split('#')[0] + '#video-' + videoId;
+            document.execCommand ? copyTextLegacy(dummyUrl) : navigator.clipboard.writeText(dummyUrl);
+            showToast('Video link copied to clipboard!');
+        }
 
-        window.stopWebcamRecording = () => {
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.stop();
-            }
-            document.getElementById('start-rec-btn').disabled = false;
-            document.getElementById('start-rec-btn').classList.remove('opacity-50');
-            document.getElementById('stop-rec-btn').disabled = true;
-            document.getElementById('stop-rec-btn').classList.add('opacity-50');
-            document.getElementById('rec-badge').classList.add('hidden');
-        };
+        function copyTextLegacy(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
 
-        // UPLOAD VIDEO TO FIRESTORE
-        window.uploadVideo = async () => {
-            if (!pendingVideoData || !currentUser) return;
-            const publishBtn = document.getElementById('publish-btn');
-            const captionInput = document.getElementById('video-caption');
-            
-            publishBtn.textContent = 'Publishing...';
-            publishBtn.disabled = true;
+        function openComments(videoId) {
+            const tx = db.transaction(STORE_VIDEOS, 'readonly');
+            const store = tx.objectStore(STORE_VIDEOS);
+            store.get(videoId).onsuccess = (e) => {
+                const video = e.target.result;
+                if (!video) return;
 
+                // Create modal for comments
+                const modalId = 'comments-modal';
+                let modal = document.getElementById(modalId);
+                if (modal) modal.remove();
+
+                modal = document.createElement('div');
+                modal.id = modalId;
+                modal.className = 'fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4';
+                
+                let commentsHtml = (video.comments || []).map(c => `
+                    <div class="flex items-start gap-3 py-2.5 border-b border-slate-800/50">
+                        <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center font-bold text-xs text-pink-400 shrink-0">
+                            ${c.author.charAt(0).toUpperCase()}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-semibold text-slate-300">@${c.author.split('@')[0]}</span>
+                                <span class="text-[10px] text-slate-500">${new Date(c.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                            </div>
+                            <p class="text-xs text-slate-200 mt-1 leading-relaxed">${escapeHtml(c.text)}</p>
+                        </div>
+                    </div>
+                `).join('');
+
+                if (!commentsHtml) {
+                    commentsHtml = `<div class="text-center py-8 text-slate-500 text-xs">No comments yet. Be the first to comment!</div>`;
+                }
+
+                modal.innerHTML = `
+                    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl flex flex-col h-[70vh] sm:h-[500px]">
+                        <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
+                            <h3 class="text-sm font-bold text-white">${(video.comments || []).length} Comments</h3>
+                            <button onclick="document.getElementById('${modalId}').remove()" class="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs transition-colors">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+
+                        <div class="flex-1 overflow-y-auto no-scrollbar space-y-1 pr-1">
+                            ${commentsHtml}
+                        </div>
+
+                        <form onsubmit="postComment(event, ${videoId})" class="mt-3 pt-3 border-t border-slate-800 flex gap-2">
+                            <input type="text" id="comment-input" required placeholder="Add a comment..."
+                                class="flex-1 px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500">
+                            <button type="submit" class="px-4 py-2.5 bg-pink-500 hover:bg-pink-600 text-white font-semibold rounded-xl text-xs transition-colors">
+                                Post
+                            </button>
+                        </form>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            };
+        }
+
+        function postComment(e, videoId) {
+            e.preventDefault();
+            const input = document.getElementById('comment-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const tx = db.transaction(STORE_VIDEOS, 'readwrite');
+            const store = tx.objectStore(STORE_VIDEOS);
+            store.get(videoId).onsuccess = (e) => {
+                const video = e.target.result;
+                if (!video) return;
+
+                if (!video.comments) video.comments = [];
+                video.comments.push({
+                    author: currentUser,
+                    text: text,
+                    createdAt: new Date().toISOString()
+                });
+
+                store.put(video).onsuccess = () => {
+                    input.value = '';
+                    openComments(videoId);
+                    loadFeed();
+                    showToast('Comment posted!');
+                };
+            };
+        }
+
+        // --- APP INITIALIZATION ---
+        window.addEventListener('DOMContentLoaded', async () => {
             try {
-                const videoId = 'video_' + Date.now();
-                const videoDocRef = doc(db, 'artifacts', 'jaxtok', 'public', 'data', 'videos', videoId);
-
-                await setDoc(videoDocRef, {
-                    id: videoId,
-                    userId: currentUser.uid,
-                    userName: currentUser.displayName || currentUser.email.split('@')[0],
-                    videoUrl: pendingVideoData,
-                    caption: captionInput.value || '',
-                    likes: [],
-                    createdAt: Date.now()
-                });
-
-                // Increment user stats in Firestore
-                const userDocRef = doc(db, 'artifacts', 'jaxtok', 'public', 'data', 'users', currentUser.uid);
-                await updateDoc(userDocRef, {
-                    videoCount: increment(1)
-                });
-
-                // Reset and close
-                closeCreateModal();
+                await initDB();
+                const savedUser = localStorage.getItem('jaxtok_user');
+                if (savedUser) {
+                    const tx = db.transaction(STORE_USERS, 'readonly');
+                    const store = tx.objectStore(STORE_USERS);
+                    store.get(savedUser).onsuccess = (e) => {
+                        if (e.target.result) {
+                            loginSuccess(savedUser);
+                        } else {
+                            localStorage.removeItem('jaxtok_user');
+                        }
+                    };
+                }
             } catch (err) {
-                alert('Failed to publish video: ' + err.message);
-            } finally {
-                publishBtn.textContent = 'Publish Video';
-                publishBtn.disabled = false;
+                showToast('Failed to initialize local database.', 'error');
             }
-        };
-
-        window.closeCreateModal = () => {
-            const modal = document.getElementById('create-modal');
-            modal.classList.add('hidden');
-            stopWebcamStream();
-            pendingVideoData = null;
-            document.getElementById('upload-details').classList.add('hidden');
-            document.getElementById('video-caption').value = '';
-        };
-
-        // PROFILE MODAL HELPERS
-        window.openProfileModal = () => {
-            document.getElementById('profile-modal').classList.remove('hidden');
-        };
-        window.closeProfileModal = () => {
-            document.getElementById('profile-modal').classList.add('hidden');
-        };
-
-        // NAVIGATION TABS SWITCHING
-        window.switchTab = (tab) => {
-            const feedBtn = document.getElementById('nav-for-you');
-            if (tab === 'feed') {
-                feedBtn.className = 'w-full flex items-center gap-4 px-4 py-3 text-lg font-semibold rounded-xl bg-gradient-to-r from-pink-500/10 to-transparent text-pink-500 border-l-4 border-pink-500 transition-all';
-            }
-        };
-
+        });
     </script>
 </body>
 </html>
