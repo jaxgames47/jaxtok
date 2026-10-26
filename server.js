@@ -1,9 +1,61 @@
 const express = require('express'), multer = require('multer'), crypto = require('crypto'), fs = require('fs'), path = require('path');
 const DATA = process.env.DATA_DIR || path.join(__dirname, 'data'), UP = path.join(DATA, 'uploads'), F = path.join(DATA, 'db.json');
 fs.mkdirSync(UP, { recursive: true });
-const db = Object.assign({ users: {}, sessions: {}, videos: [], stickers: [], messages: [] }, fs.existsSync(F) ? JSON.parse(fs.readFileSync(F, 'utf8')) : {});
-const save = () => fs.writeFileSync(F, JSON.stringify(db));
-if (!db.users['jaxtok@jaxtok.app']) { db.users['jaxtok@jaxtok.app'] = { salt: 'x', hash: '!', following: [], settings: {}, bio: 'Official JaxTok account', createdAt: new Date().toISOString() }; save(); }
+
+// ---- permanent storage ----
+// Accounts, posts, comments, messages -> Postgres (DATABASE_URL). Falls back to a local file if it isn't set.
+// Video/photo/audio files -> Cloudinary (CLOUDINARY_* variables). Falls back to local disk if they aren't set.
+const CLOUD = process.env.CLOUDINARY_CLOUD_NAME, CKEY = process.env.CLOUDINARY_API_KEY, CSEC = process.env.CLOUDINARY_API_SECRET;
+const useCloud = !!(CLOUD && CKEY && CSEC);
+let pool = null;
+if (process.env.DATABASE_URL) {
+  const { Pool } = require('pg');
+  pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+}
+const db = { users: {}, sessions: {}, videos: [], stickers: [], messages: [], files: {} };
+
+let chain = Promise.resolve(), timer = null;
+const write = () => {
+  const s = JSON.stringify(db);
+  return pool
+    ? pool.query('insert into jt_store(k, v) values($1, $2) on conflict (k) do update set v = excluded.v', ['db', s])
+    : fs.promises.writeFile(F, s);
+};
+const persist = () => (chain = chain.then(write).catch((e) => console.error('Save failed:', e.message)));
+const save = () => { if (!timer) timer = setTimeout(() => { timer = null; persist(); }, 200); };
+const flush = async () => { if (timer) { clearTimeout(timer); timer = null; } await persist(); };
+['SIGTERM', 'SIGINT'].forEach((s) => process.on(s, async () => { await flush(); process.exit(0); }));
+
+async function load() {
+  let saved = null;
+  if (pool) {
+    await pool.query('create table if not exists jt_store(k text primary key, v text not null)');
+    const r = await pool.query('select v from jt_store where k=$1', ['db']);
+    if (r.rows[0]) saved = JSON.parse(r.rows[0].v);
+  } else if (fs.existsSync(F)) saved = JSON.parse(fs.readFileSync(F, 'utf8'));
+  Object.assign(db, saved || {});
+  db.files = db.files || {};
+  if (!db.users['jaxtok@jaxtok.app']) {
+    db.users['jaxtok@jaxtok.app'] = { salt: 'x', hash: '!', following: [], settings: {}, bio: 'Official JaxTok account', createdAt: new Date().toISOString() };
+  }
+  await flush();
+}
+
+// send an uploaded file to Cloudinary, remember its address, then delete the temporary local copy
+async function stash(file) {
+  if (!file || !useCloud) return;
+  const ts = Math.floor(Date.now() / 1000);
+  const sig = crypto.createHash('sha1').update('timestamp=' + ts + CSEC).digest('hex');
+  const fd = new FormData();
+  fd.append('file', new Blob([fs.readFileSync(file.path)], { type: file.mimetype }), file.filename);
+  fd.append('api_key', CKEY); fd.append('timestamp', String(ts)); fd.append('signature', sig);
+  const r = await fetch('https://api.cloudinary.com/v1_1/' + CLOUD + '/auto/upload', { method: 'POST', body: fd });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.secure_url) throw new Error((d.error && d.error.message) || 'Cloudinary upload failed');
+  db.files[file.filename] = d.secure_url;
+  fs.unlink(file.path, () => {});
+}
+
 const app = express();
 app.use(express.json());
 app.use((q, r, n) => {
@@ -81,7 +133,11 @@ const up = multer({
   limits: { fileSize: 50 * 1048576 },
   fileFilter: (q, f, cb) => cb(null, (({ video: ['video/'], sticker: ['image/', 'video/'], media: ['image/', 'audio/'] })[f.fieldname] || []).some((x) => f.mimetype.startsWith(x))),
 });
-const one = (f) => (q, r, n) => up.single(f)(q, r, (e) => e ? r.status(400).json({ error: e.code === 'LIMIT_FILE_SIZE' ? 'File is over 50MB.' : 'Upload failed.' }) : n());
+const one = (f) => (q, r, n) => up.single(f)(q, r, async (e) => {
+  if (e) return r.status(400).json({ error: e.code === 'LIMIT_FILE_SIZE' ? 'File is over 50MB.' : 'Upload failed.' });
+  try { await stash(q.file); n(); }
+  catch (x) { console.error('Store failed:', x.message); r.status(502).json({ error: 'Could not store the file. Try again.' }); }
+});
 
 app.post('/api/media', auth, one('media'), (q, r) => {
   if (!q.file) return r.status(400).json({ error: 'Unsupported file.' });
@@ -148,6 +204,16 @@ app.post('/api/messages/:n', auth, (q, r) => {
   db.messages.push(m); save(); r.json(mj(m));
 });
 
+// files stored in Cloudinary are served by sending the browser to their permanent address
+app.get('/uploads/:name', (q, r, n) => {
+  const u = db.files[q.params.name];
+  if (!u) return n();
+  r.set('Cache-Control', 'public, max-age=86400');
+  r.redirect(302, u);
+});
 app.use('/uploads', express.static(UP));
 app.use(express.static(path.join(__dirname, 'public')));
-app.listen(process.env.PORT || 3000, () => console.log('JaxTok running'));
+
+load()
+  .then(() => app.listen(process.env.PORT || 3000, () => console.log('JaxTok running |', pool ? 'Postgres' : 'local file', '|', useCloud ? 'Cloudinary' : 'local disk')))
+  .catch((e) => { console.error('Startup failed:', e.message); process.exit(1); });
