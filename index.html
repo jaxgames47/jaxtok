@@ -380,12 +380,21 @@ const tools = (onSticker, onImg, onVoice, onSound) => `<button onclick="${onStic
   <button onclick="voice(this,${onVoice})" class="text-xl px-1.5"><i class="fa-solid fa-microphone"></i></button>
   <button onclick="${onSound}" class="text-xl px-1.5"><i class="fa-solid fa-music"></i></button>`;
 
+// comment bar: avatar + pill input with photo, sticker, voice, sound and @ inside it
 function comments(id) {
   const v = V[id];
-  sheet(`<div class="p-4 h-[70vh] flex flex-col"><h3 class="text-center text-sm font-bold mb-3">${v.comments.length} comments</h3>
+  sheet(`<div class="p-4 h-[70vh] flex flex-col bg-[#1c1c1c] rounded-t-3xl"><h3 class="text-center text-sm font-bold mb-3">${v.comments.length} comments</h3>
   <div class="flex-1 overflow-y-auto ns space-y-3">${v.comments.map(cm).join('') || '<p class="text-center text-white/40 text-sm mt-8">No comments yet</p>'}</div>
-  <div class="flex items-center gap-1 pt-3">${tools(`pickSticker((s)=>postC('${id}','',s),()=>comments('${id}'))`, `(u)=>postC('${id}','',null,{image:u})`, `(u)=>postC('${id}','',null,{audio:u})`, `pickSound((s)=>postC('${id}','',null,{audio:s.url}),()=>comments('${id}'))`)}
-  <input id="ci" onkeydown="if(event.key=='Enter')postC('${id}')" placeholder="Add comment..." class="${inp}"><button onclick="postC('${id}')" class="px-4 py-3 rounded-xl bg-[var(--a)] text-sm font-semibold">Post</button></div></div>`);
+  <div class="flex items-center gap-2 pt-3 pb-[env(safe-area-inset-bottom)]">${avi(ME.avatar, ME.username, 'w-10 h-10')}
+    <div class="flex-1 min-w-0 flex items-center bg-[#3a3a3a] rounded-full h-12 pl-4 pr-2">
+      <input id="ci" oninput="$('csend').classList.toggle('hidden',!this.value.trim())" onkeydown="if(event.key=='Enter')postC('${id}')" placeholder="Add comment..." class="flex-1 min-w-0 bg-transparent outline-none text-sm placeholder:text-white/40">
+      <label class="px-1.5 text-lg cursor-pointer"><i class="fa-regular fa-image"></i><input type="file" accept="image/*" class="hidden" onchange="upImg(this,(u)=>postC('${id}','',null,{image:u}))"></label>
+      <button onclick="pickSticker((s)=>postC('${id}','',s),()=>comments('${id}'))" class="px-1.5 text-lg"><i class="fa-regular fa-note-sticky"></i></button>
+      <button onclick="voice(this,(u)=>postC('${id}','',null,{audio:u}))" class="px-1.5 text-lg"><i class="fa-solid fa-microphone"></i></button>
+      <button onclick="pickSound((s)=>postC('${id}','',null,{audio:s.url}),()=>comments('${id}'))" class="px-1.5 text-lg"><i class="fa-solid fa-music"></i></button>
+      <button onclick="$('ci').value+='@';$('ci').focus();$('csend').classList.remove('hidden')" class="px-1.5 text-lg"><i class="fa-solid fa-at"></i></button>
+      <button id="csend" onclick="postC('${id}')" class="hidden ml-1 w-8 h-8 rounded-full bg-[var(--a)] text-xs shrink-0"><i class="fa-solid fa-arrow-up"></i></button>
+    </div></div></div>`);
 }
 async function postC(id, t, s, x) {
   t = t || ($('ci') ? $('ci').value.trim() : '');
@@ -411,36 +420,51 @@ async function sendM(t, s, x) {
   if (!t && !s && !x) return;
   try { await api('/api/messages/' + S.chat, J({ text: t, sticker: s && s.id, ...(x || {}) })); openChat(S.chat); } catch (e) { fail(e); }
 }
+
+// sticker picker: tap + to add your own video or image as a sticker
+let _pk = [];
 async function pickSticker(cb, back) {
-  _cb = cb;
+  _cb = cb; _pk = [cb, back];
   try {
     const l = await api('/api/stickers');
     sheet(`<div class="p-4"><div class="flex items-center justify-between mb-3"><h3 class="font-bold text-sm">Stickers</h3><button onclick="${back ? 'closeSheet();(' + back + ')()' : 'closeSheet()'}" class="text-white/60 text-sm">Back</button></div>
-    <div class="grid grid-cols-3 gap-3">${l.map((s) => `<button onclick="_cb(${esc(JSON.stringify(s))})" class="aspect-square bg-white/5 rounded-xl p-1 flex items-center justify-center">${stk(s.url, 'max-w-full max-h-full')}</button>`).join('')}</div>
-    ${l.length ? '' : '<p class="text-center text-white/40 text-sm py-8">No stickers yet. Tap Share, then Create sticker, on any video.</p>'}</div>`);
+    <div class="grid grid-cols-3 gap-3"><label class="aspect-square rounded-xl border-2 border-dashed border-white/30 flex flex-col items-center justify-center gap-1 text-xs text-white/70 cursor-pointer"><i class="fa-solid fa-plus text-xl"></i>Add<input type="file" accept="image/*,video/*" class="hidden" onchange="stickerFile(this)"></label>
+    ${l.map((s) => `<button onclick="_cb(${esc(JSON.stringify(s))})" class="aspect-square bg-white/5 rounded-xl p-1 flex items-center justify-center">${stk(s.url, 'max-w-full max-h-full')}</button>`).join('')}</div></div>`);
   } catch (e) { fail(e); }
 }
+function stickerFile(i) {
+  const f = i.files[0]; if (!f) return;
+  const [cb, back] = _pk, img = f.type.startsWith('image/');
+  const el = img ? new Image() : Object.assign(document.createElement('video'), { muted: true, loop: true, playsInline: true, preload: 'auto' });
+  el.onerror = () => toast('Could not open that file', 1);
+  el[img ? 'onload' : 'onloadeddata'] = () => { mkSticker(null, el); SC.back = () => pickSticker(cb, back); };
+  el.src = URL.createObjectURL(f);
+}
 
-// sticker creator: crop ratio + still / 2.5s / 5s clip
+// sticker creator: crop ratio, pick the frame/start, and length from frozen (0) up to 5s
 let SC = { r: 1, len: 0 };
-function mkSticker(id) {
-  _sv = document.querySelector(`[data-v="${id}"] video`); _sv.pause(); SC = { r: 1, len: 0 };
+function mkSticker(id, el) {
+  _sv = el || document.querySelector(`[data-v="${id}"] video`); if (_sv.pause) _sv.pause(); SC = { r: 1, len: 0 };
+  const vid = _sv.tagName == 'VIDEO', dur = vid && isFinite(_sv.duration) ? Math.floor(_sv.duration * 10) / 10 : 0;
   sheet(`<div class="p-5 space-y-3 text-center"><h3 class="font-bold text-sm">Create sticker</h3>
-  <canvas id="sc" class="mx-auto rounded-2xl max-h-[38vh] max-w-full bg-zinc-800"></canvas>
+  <canvas id="sc" class="mx-auto rounded-2xl max-h-[34vh] max-w-full bg-zinc-800"></canvas>
   <div class="flex justify-center gap-2">${[['16:9', 16 / 9], ['1:1', 1], ['4:3', 4 / 3]].map(([l, r]) => `<button data-r="${r}" onclick="SC.r=${r};drawS();optHl()" class="px-3 py-1.5 rounded-lg bg-white/10 text-xs">${l}</button>`).join('')}</div>
-  <div class="flex justify-center gap-2">${[['Still', 0], ['2.5s clip', 2.5], ['5s clip', 5]].map(([l, n]) => `<button data-l="${n}" onclick="SC.len=${n};optHl()" class="px-3 py-1.5 rounded-lg bg-white/10 text-xs">${l}</button>`).join('')}</div>
+  ${vid ? `<div class="text-left"><p class="text-xs text-white/60 mb-1">Frame / start: <b id="ts">${_sv.currentTime.toFixed(1)}s</b></p>
+    <input type="range" min="0" max="${dur}" step="0.1" value="${_sv.currentTime}" oninput="seekS(this.value)" class="w-full accent-[var(--a)]">
+    <p class="text-xs text-white/60 mt-2 mb-1">Length: <b id="ll">Frozen (still)</b></p>
+    <input type="range" min="0" max="5" step="0.5" value="0" oninput="SC.len=+this.value;$('ll').textContent=SC.len?SC.len+'s clip':'Frozen (still)'" class="w-full accent-[var(--a)]"></div>` : ''}
   <input id="st" oninput="drawS()" maxlength="24" placeholder="Add text (optional)" class="${inp}">
   <button id="sv" onclick="saveSticker()" class="w-full py-3 rounded-xl font-semibold bg-[var(--a)]">Save sticker</button></div>`);
   optHl(); drawS();
 }
+function seekS(t) { $('ts').textContent = (+t).toFixed(1) + 's'; _sv.onseeked = drawS; _sv.currentTime = +t; }
 function optHl() {
   document.querySelectorAll('#sheet [data-r]').forEach((b) => b.style.outline = +b.dataset.r === SC.r ? '2px solid var(--a)' : '');
-  document.querySelectorAll('#sheet [data-l]').forEach((b) => b.style.outline = +b.dataset.l === SC.len ? '2px solid var(--a)' : '');
 }
 function drawS() {
   const c = $('sc'); if (!c) return;
   const W = 320, H = Math.round(W / SC.r); if (c.width != W || c.height != H) { c.width = W; c.height = H; }
-  const x = c.getContext('2d'), t = $('st').value, vw = _sv.videoWidth || W, vh = _sv.videoHeight || W, k = Math.max(W / vw, H / vh);
+  const x = c.getContext('2d'), t = $('st').value, vw = _sv.videoWidth || _sv.naturalWidth || W, vh = _sv.videoHeight || _sv.naturalHeight || W, k = Math.max(W / vw, H / vh);
   x.clearRect(0, 0, W, H); x.save();
   if (x.roundRect) { x.beginPath(); x.roundRect(0, 0, W, H, 28); x.clip(); }
   x.drawImage(_sv, (W - vw * k) / 2, (H - vh * k) / 2, vw * k, vh * k); x.restore();
@@ -450,7 +474,7 @@ async function saveSticker() {
   const c = $('sc'), b = $('sv'), name = $('st').value || 'sticker';
   const send = async (blob, fn) => {
     const fd = new FormData(); fd.append('name', name); fd.append('sticker', blob, fn);
-    try { await api('/api/stickers', { method: 'POST', body: fd }); closeSheet(); toast('Sticker saved!'); } catch (e) { fail(e); b.disabled = false; b.textContent = 'Save sticker'; }
+    try { await api('/api/stickers', { method: 'POST', body: fd }); closeSheet(); toast('Sticker saved!'); if (SC.back) SC.back(); } catch (e) { fail(e); b.disabled = false; b.textContent = 'Save sticker'; }
   };
   b.disabled = true;
   if (!SC.len) { c.toBlob((bl) => bl ? send(bl, 's.png') : toast('Could not capture this frame', 1), 'image/png'); return; }
@@ -459,7 +483,7 @@ async function saveSticker() {
   const ch = [], rec = new MediaRecorder(c.captureStream(30));
   rec.ondataavailable = (e) => e.data.size && ch.push(e.data);
   rec.onstop = () => send(new Blob(ch, { type: (rec.mimeType || 'video/webm').split(';')[0] }), 'clip');
-  const t0 = performance.now(); _sv.muted = true; rec.start(); try { await _sv.play(); } catch (e) {}
+  const t0 = performance.now(); _sv.muted = true; _sv.loop = true; rec.start(); try { await _sv.play(); } catch (e) {}
   (function loop() { drawS(); if (performance.now() - t0 < SC.len * 1000) requestAnimationFrame(loop); else { rec.stop(); _sv.pause(); } })();
 }
 
@@ -716,7 +740,21 @@ function setSnd(i) {
 }
 
 // ---------- start ----------
-if (token) api('/api/me').then((d) => { ME = d; boot(); }).catch(() => { token = null; authView(); }); else authView();
+// stay signed in on refresh: only a real "sign in again" answer logs you out.
+// If the server is just waking up (Render free tier), wait and retry instead of kicking you out.
+async function start() {
+  if (!token) return authView();
+  for (let i = 0; i < 10; i++) {
+    try { ME = await api('/api/me'); return boot(); }
+    catch (e) {
+      if (e.message == 'Please sign in again.') { token = null; localStorage.removeItem('jt'); return authView(); }
+      $('root').innerHTML = '<div class="h-full w-full flex flex-col items-center justify-center gap-3 text-white/60 text-sm"><img src="' + uri(LOGO) + '" class="w-16 h-16" alt="">Waking up the server...</div>';
+      await new Promise((r) => setTimeout(r, 4000));
+    }
+  }
+  authView();
+}
+start();
 </script>
 </body>
 </html>
