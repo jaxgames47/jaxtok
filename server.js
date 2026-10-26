@@ -12,7 +12,9 @@ if (process.env.DATABASE_URL) {
   const { Pool } = require('pg');
   pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 }
-const db = { users: {}, sessions: {}, videos: [], stickers: [], messages: [], files: {} };
+const db = { users: {}, sessions: {}, videos: [], stickers: [], messages: [], files: {}, banned: {} };
+const OWNER = (process.env.OWNER_USERNAME || 'jaxon').toLowerCase(), OWNER_EMAIL = OWNER + '@jaxtok.app';
+const RESERVED = [OWNER, 'jaxtok', 'admin', 'owner'];
 
 let chain = Promise.resolve(), timer = null;
 const write = () => {
@@ -35,9 +37,14 @@ async function load() {
   } else if (fs.existsSync(F)) saved = JSON.parse(fs.readFileSync(F, 'utf8'));
   Object.assign(db, saved || {});
   db.files = db.files || {};
+  db.banned = db.banned || {};
   if (!db.users['jaxtok@jaxtok.app']) {
     db.users['jaxtok@jaxtok.app'] = { salt: 'x', hash: '!', following: [], settings: {}, bio: 'Official JaxTok account', createdAt: new Date().toISOString() };
   }
+  if (process.env.OWNER_PASSWORD) {
+    const salt = crypto.randomBytes(16).toString('hex'), old = db.users[OWNER_EMAIL] || {};
+    db.users[OWNER_EMAIL] = { following: [], settings: {}, bio: '', createdAt: new Date().toISOString(), ...old, salt, hash: hp(process.env.OWNER_PASSWORD, salt) };
+  } else console.log('OWNER_PASSWORD is not set, so the owner account "' + OWNER + '" does not exist yet.');
   await flush();
 }
 
@@ -68,34 +75,37 @@ app.use((q, r, n) => {
 const nm = (e) => e.split('@')[0];
 const U = (e) => { const u = db.users[e]; u.following = u.following || []; u.settings = u.settings || {}; return u; };
 const find = (n) => Object.keys(db.users).find((e) => nm(e) === String(n).toLowerCase());
-const who = (q) => db.sessions[(q.headers.authorization || '').replace('Bearer ', '')];
+const who = (q) => { const e = db.sessions[(q.headers.authorization || '').replace('Bearer ', '')]; return e && !db.banned[e] ? e : undefined; };
 const auth = (q, r, n) => { const e = who(q); if (!e || !db.users[e]) return r.status(401).json({ error: 'Please sign in again.' }); q.email = e; n(); };
 const hp = (p, s) => crypto.scryptSync(p, s, 32).toString('hex');
 const av = (e) => U(e).avatar || '';
 const mu = (x) => (typeof x === 'string' && /^\/uploads\/[\w.-]+$/.test(x)) ? x : undefined;
-const prof = (e) => ({ username: nm(e), bio: U(e).bio || '', avatar: av(e), settings: U(e).settings });
+const prof = (e) => ({ username: nm(e), bio: U(e).bio || '', avatar: av(e), settings: U(e).settings, owner: e === OWNER_EMAIL });
 const sess = (e) => { const t = crypto.randomBytes(24).toString('hex'); db.sessions[t] = e; save(); return { token: t, ...prof(e) }; };
 const followers = (e) => Object.values(db.users).filter((u) => (u.following || []).includes(e)).length;
 const pv = (v, me) => ({
-  id: v.id, author: nm(v.author), avatar: av(v.author), caption: v.caption, url: '/uploads/' + v.file,
+  id: v.id, author: nm(v.author), avatar: av(v.author), caption: v.caption, url: '/uploads/' + v.file, ownerAuthor: v.author === OWNER_EMAIL, ownerLiked: v.likedBy.includes(OWNER_EMAIL),
   likes: v.likedBy.length, liked: !!me && v.likedBy.includes(me),
-  comments: v.comments.map((c) => ({ author: nm(c.author), avatar: av(c.author), text: c.text, sticker: c.sticker, image: c.image, audio: c.audio, createdAt: c.createdAt })),
+  comments: v.comments.map((c) => ({ author: nm(c.author), avatar: av(c.author), text: c.text, sticker: c.sticker, image: c.image, audio: c.audio, owner: c.author === OWNER_EMAIL, createdAt: c.createdAt })),
   createdAt: v.createdAt,
 });
 
 // ---- accounts ----
 app.post('/api/signup', (q, r) => {
-  const email = String(q.body.email || '').trim().toLowerCase(), pw = String(q.body.password || '');
-  if (!/^\S+@\S+\.\S+$/.test(email)) return r.status(400).json({ error: 'Enter a valid email.' });
+  const name = String(q.body.username || '').trim().toLowerCase(), pw = String(q.body.password || '');
+  if (!/^[a-z0-9_]{3,20}$/.test(name)) return r.status(400).json({ error: 'Username must be 3-20 letters, numbers or underscores.' });
+  if (RESERVED.includes(name)) return r.status(409).json({ error: 'That username is reserved.' });
   if (pw.length < 6) return r.status(400).json({ error: 'Password must be 6+ characters.' });
-  if (db.users[email] || find(nm(email))) return r.status(409).json({ error: 'That email/username is taken. Please sign in.' });
+  const email = name + '@jaxtok.app';
+  if (db.users[email]) return r.status(409).json({ error: 'That username is taken. Please sign in.' });
   const salt = crypto.randomBytes(16).toString('hex');
   db.users[email] = { salt, hash: hp(pw, salt), following: [], settings: {}, createdAt: new Date().toISOString() };
   r.json(sess(email));
 });
 app.post('/api/login', (q, r) => {
-  const email = String(q.body.email || '').trim().toLowerCase(), u = db.users[email];
-  if (!u || hp(String(q.body.password || ''), u.salt) !== u.hash) return r.status(401).json({ error: 'Invalid email or password.' });
+  const email = String(q.body.username || '').trim().toLowerCase() + '@jaxtok.app', u = db.users[email];
+  if (!u || hp(String(q.body.password || ''), u.salt) !== u.hash) return r.status(401).json({ error: 'Wrong username or password.' });
+  if (db.banned[email]) return r.status(403).json({ error: 'You are banned from JaxTok.' });
   r.json(sess(email));
 });
 app.get('/api/me', auth, (q, r) => r.json(prof(q.email)));
@@ -109,7 +119,7 @@ app.put('/api/me', auth, (q, r) => {
 app.get('/api/users', (q, r) => {
   const me = who(q), t = String(q.query.q || '').toLowerCase().replace('#', '');
   r.json(Object.keys(db.users).filter((e) => nm(e).includes(t)).slice(0, 30).map((e) => ({
-    username: nm(e), avatar: av(e), bio: U(e).bio || '', followers: followers(e), isFollowing: !!me && U(me).following.includes(e),
+    username: nm(e), owner: e === OWNER_EMAIL, avatar: av(e), bio: U(e).bio || '', followers: followers(e), isFollowing: !!me && U(me).following.includes(e),
   })));
 });
 app.get('/api/users/:n', (q, r) => {
@@ -175,6 +185,11 @@ app.post('/api/videos/:id/comments', auth, vid, (q, r) => {
   save(); r.json(pv(q.v, q.email));
 });
 
+app.post('/api/videos/:id/delete', auth, vid, (q, r) => {
+  if (q.v.author !== q.email && q.email !== OWNER_EMAIL) return r.status(403).json({ error: 'You can only delete your own videos.' });
+  db.videos = db.videos.filter((x) => x.id !== q.v.id); save(); r.json({ ok: true });
+});
+
 // ---- stickers ----
 app.get('/api/stickers', (q, r) => r.json(db.stickers.slice().reverse().slice(0, 200).map((s) => ({ id: s.id, name: s.name, url: '/uploads/' + s.file, owner: nm(s.owner) }))));
 app.post('/api/stickers', auth, one('sticker'), (q, r) => {
@@ -202,6 +217,36 @@ app.post('/api/messages/:n', auth, (q, r) => {
   if (!text && !st && !image && !audio) return r.status(400).json({ error: 'Nothing to send.' });
   const m = { from: q.email, to: e, text, sticker: st && '/uploads/' + st.file, image, audio, createdAt: new Date().toISOString() };
   db.messages.push(m); save(); r.json(mj(m));
+});
+
+// ---- owner tools ----
+const adm = (q, r, n) => q.email === OWNER_EMAIL ? n() : r.status(403).json({ error: 'Owner only.' });
+const target = (q, r) => {
+  const e = find(q.body && q.body.username);
+  if (!e || e === OWNER_EMAIL || nm(e) === 'jaxtok') { r.status(400).json({ error: "You can't do that to this account." }); return null; }
+  return e;
+};
+function purgeUser(e) {
+  db.videos = db.videos.filter((v) => v.author !== e);
+  db.videos.forEach((v) => { v.likedBy = v.likedBy.filter((x) => x !== e); v.comments = v.comments.filter((c) => c.author !== e); });
+  db.messages = db.messages.filter((m) => m.from !== e && m.to !== e);
+  db.stickers = db.stickers.filter((s) => s.owner !== e);
+  Object.values(db.users).forEach((u) => { u.following = (u.following || []).filter((x) => x !== e); });
+  Object.keys(db.sessions).forEach((t) => { if (db.sessions[t] === e) delete db.sessions[t]; });
+  delete db.users[e]; delete db.banned[e];
+}
+app.get('/api/admin/users', auth, adm, (q, r) => r.json(Object.keys(db.users).filter((e) => nm(e) !== 'jaxtok').map((e) => ({
+  username: nm(e), avatar: av(e), owner: e === OWNER_EMAIL, banned: !!db.banned[e], videos: db.videos.filter((v) => v.author === e).length,
+}))));
+app.post('/api/admin/ban', auth, adm, (q, r) => {
+  const e = target(q, r); if (!e) return;
+  if (db.banned[e]) delete db.banned[e];
+  else { db.banned[e] = new Date().toISOString(); Object.keys(db.sessions).forEach((t) => { if (db.sessions[t] === e) delete db.sessions[t]; }); }
+  save(); r.json({ banned: !!db.banned[e] });
+});
+app.post('/api/admin/delete', auth, adm, (q, r) => {
+  const e = target(q, r); if (!e) return;
+  purgeUser(e); save(); r.json({ ok: true });
 });
 
 // open https://jaxtok.onrender.com/api/status to check that permanent storage is switched on
