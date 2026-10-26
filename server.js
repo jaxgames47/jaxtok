@@ -84,20 +84,19 @@ const pv = (v, me) => ({
 });
 
 // ---- accounts ----
-// sign-in writes the new session to storage before replying, so a refresh right after never loses it
-app.post('/api/signup', async (q, r) => {
+app.post('/api/signup', (q, r) => {
   const email = String(q.body.email || '').trim().toLowerCase(), pw = String(q.body.password || '');
   if (!/^\S+@\S+\.\S+$/.test(email)) return r.status(400).json({ error: 'Enter a valid email.' });
   if (pw.length < 6) return r.status(400).json({ error: 'Password must be 6+ characters.' });
   if (db.users[email] || find(nm(email))) return r.status(409).json({ error: 'That email/username is taken. Please sign in.' });
   const salt = crypto.randomBytes(16).toString('hex');
   db.users[email] = { salt, hash: hp(pw, salt), following: [], settings: {}, createdAt: new Date().toISOString() };
-  const s = sess(email); await flush(); r.json(s);
+  r.json(sess(email));
 });
-app.post('/api/login', async (q, r) => {
+app.post('/api/login', (q, r) => {
   const email = String(q.body.email || '').trim().toLowerCase(), u = db.users[email];
   if (!u || hp(String(q.body.password || ''), u.salt) !== u.hash) return r.status(401).json({ error: 'Invalid email or password.' });
-  const s = sess(email); await flush(); r.json(s);
+  r.json(sess(email));
 });
 app.get('/api/me', auth, (q, r) => r.json(prof(q.email)));
 app.put('/api/me', auth, (q, r) => {
@@ -140,14 +139,13 @@ const one = (f) => (q, r, n) => up.single(f)(q, r, async (e) => {
   catch (x) { console.error('Store failed:', x.message); r.status(502).json({ error: 'Could not store the file. Try again.' }); }
 });
 
-app.post('/api/media', auth, one('media'), async (q, r) => {
+app.post('/api/media', auth, one('media'), (q, r) => {
   if (!q.file) return r.status(400).json({ error: 'Unsupported file.' });
-  await flush();
   r.json({ url: '/uploads/' + q.file.filename, kind: q.file.mimetype.startsWith('audio') ? 'audio' : 'image' });
 });
-app.post('/api/me/avatar', auth, one('media'), async (q, r) => {
+app.post('/api/me/avatar', auth, one('media'), (q, r) => {
   if (!q.file || !q.file.mimetype.startsWith('image/')) return r.status(400).json({ error: 'Please choose an image.' });
-  U(q.email).avatar = '/uploads/' + q.file.filename; await flush(); r.json(prof(q.email));
+  U(q.email).avatar = '/uploads/' + q.file.filename; save(); r.json(prof(q.email));
 });
 
 // ---- videos ----
@@ -158,11 +156,10 @@ app.get('/api/videos', (q, r) => {
   if (t) l = l.filter((v) => v.caption.toLowerCase().includes(t) || nm(v.author).includes(t.replace('@', '')));
   r.json(l.map((v) => pv(v, me)));
 });
-// a new post is written to permanent storage BEFORE the app is told it worked
-app.post('/api/videos', auth, one('video'), async (q, r) => {
+app.post('/api/videos', auth, one('video'), (q, r) => {
   if (!q.file) return r.status(400).json({ error: 'Please choose a video file.' });
   const v = { id: crypto.randomUUID(), author: q.email, caption: String(q.body.caption || 'No caption').slice(0, 300), file: q.file.filename, likedBy: [], comments: [], createdAt: new Date().toISOString() };
-  db.videos.push(v); await flush(); r.json(pv(v, q.email));
+  db.videos.push(v); save(); r.json(pv(v, q.email));
 });
 const vid = (q, r, n) => { q.v = db.videos.find((x) => x.id === q.params.id); q.v ? n() : r.status(404).json({ error: 'Video not found.' }); };
 app.post('/api/videos/:id/like', auth, vid, (q, r) => {
@@ -170,20 +167,20 @@ app.post('/api/videos/:id/like', auth, vid, (q, r) => {
   i > -1 ? l.splice(i, 1) : l.push(q.email);
   save(); r.json(pv(q.v, q.email));
 });
-app.post('/api/videos/:id/comments', auth, vid, async (q, r) => {
+app.post('/api/videos/:id/comments', auth, vid, (q, r) => {
   const text = String(q.body.text || '').trim().slice(0, 500), st = db.stickers.find((s) => s.id === q.body.sticker);
   const image = mu(q.body.image), audio = mu(q.body.audio);
   if (!text && !st && !image && !audio) return r.status(400).json({ error: 'Write a comment or add a sticker, photo or voice note.' });
   q.v.comments.push({ author: q.email, text, sticker: st && '/uploads/' + st.file, image, audio, createdAt: new Date().toISOString() });
-  await flush(); r.json(pv(q.v, q.email));
+  save(); r.json(pv(q.v, q.email));
 });
 
 // ---- stickers ----
 app.get('/api/stickers', (q, r) => r.json(db.stickers.slice().reverse().slice(0, 200).map((s) => ({ id: s.id, name: s.name, url: '/uploads/' + s.file, owner: nm(s.owner) }))));
-app.post('/api/stickers', auth, one('sticker'), async (q, r) => {
+app.post('/api/stickers', auth, one('sticker'), (q, r) => {
   if (!q.file) return r.status(400).json({ error: 'No image received.' });
   const s = { id: crypto.randomUUID(), owner: q.email, name: String(q.body.name || 'sticker').slice(0, 40), file: q.file.filename };
-  db.stickers.push(s); await flush(); r.json({ id: s.id, name: s.name, url: '/uploads/' + s.file, owner: nm(s.owner) });
+  db.stickers.push(s); save(); r.json({ id: s.id, name: s.name, url: '/uploads/' + s.file, owner: nm(s.owner) });
 });
 
 // ---- messages ----
@@ -198,13 +195,13 @@ app.get('/api/messages/:n', auth, (q, r) => {
   if (!e) return r.status(404).json({ error: 'No user with that name.' });
   r.json(db.messages.filter((x) => (x.from === q.email && x.to === e) || (x.from === e && x.to === q.email)).slice(-200).map(mj));
 });
-app.post('/api/messages/:n', auth, async (q, r) => {
+app.post('/api/messages/:n', auth, (q, r) => {
   const e = find(q.params.n), text = String(q.body.text || '').trim().slice(0, 1000), st = db.stickers.find((s) => s.id === q.body.sticker);
   if (!e || e === q.email) return r.status(400).json({ error: "Can't message that account." });
   const image = mu(q.body.image), audio = mu(q.body.audio);
   if (!text && !st && !image && !audio) return r.status(400).json({ error: 'Nothing to send.' });
   const m = { from: q.email, to: e, text, sticker: st && '/uploads/' + st.file, image, audio, createdAt: new Date().toISOString() };
-  db.messages.push(m); await flush(); r.json(mj(m));
+  db.messages.push(m); save(); r.json(mj(m));
 });
 
 // files stored in Cloudinary are served by sending the browser to their permanent address
@@ -218,8 +215,5 @@ app.use('/uploads', express.static(UP));
 app.use(express.static(path.join(__dirname, 'public')));
 
 load()
-  .then(() => app.listen(process.env.PORT || 3000, () => {
-    console.log('JaxTok running |', pool ? 'Postgres' : 'local file', '|', useCloud ? 'Cloudinary' : 'local disk');
-    if (!pool || !useCloud) console.warn('WARNING: without DATABASE_URL and CLOUDINARY_* set, posts/videos are lost when the server restarts.');
-  }))
+  .then(() => app.listen(process.env.PORT || 3000, () => console.log('JaxTok running |', pool ? 'Postgres' : 'local file', '|', useCloud ? 'Cloudinary' : 'local disk')))
   .catch((e) => { console.error('Startup failed:', e.message); process.exit(1); });
