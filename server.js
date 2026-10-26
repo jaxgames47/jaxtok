@@ -204,6 +204,17 @@ app.post('/api/messages/:n', auth, (q, r) => {
   db.messages.push(m); save(); r.json(mj(m));
 });
 
+// open https://jaxtok.onrender.com/api/status to check that permanent storage is switched on
+app.get('/api/status', async (q, r) => {
+  let dbOk = false, dbError = null;
+  if (pool) { try { await pool.query('select 1'); dbOk = true; } catch (e) { dbError = e.message; } }
+  r.json({
+    database: pool ? (dbOk ? 'Postgres connected' : 'Postgres FAILED: ' + dbError) : 'NOT SET (data is wiped when the server sleeps)',
+    files: useCloud ? 'Cloudinary on' : 'NOT SET (videos are wiped when the server sleeps)',
+    users: Object.keys(db.users).length, videos: db.videos.length,
+  });
+});
+
 // files stored in Cloudinary are served by sending the browser to their permanent address
 app.get('/uploads/:name', (q, r, n) => {
   const u = db.files[q.params.name];
