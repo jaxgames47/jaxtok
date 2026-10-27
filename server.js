@@ -71,6 +71,7 @@ app.use((q, r, n) => {
   r.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
   q.method === 'OPTIONS' ? r.sendStatus(204) : n();
 });
+require('./plus-server')(app, () => ({ db, save, find, U, pv, hp, who, auth, adm, OWNER_EMAIL }));
 
 const nm = (e) => e.split('@')[0];
 const U = (e) => { const u = db.users[e]; u.following = u.following || []; u.settings = u.settings || {}; return u; };
