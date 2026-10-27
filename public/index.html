@@ -8,12 +8,32 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
 :root{--a:#ec4899}
+html,body,#root{height:100vh;height:100dvh!important}
 body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none}
 .ns::-webkit-scrollbar{display:none}.ns{scrollbar-width:none}
 @keyframes pop{0%{transform:scale(0);opacity:1}50%{transform:scale(1.4)}100%{transform:scale(1) translateY(-50px);opacity:0}}
 @keyframes bnc{0%,100%{transform:scale(1)}40%{transform:scale(1.4)}}
 @keyframes up{from{transform:translateY(100%)}to{transform:none}}
 @keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.vw{position:relative;width:100%;height:100%}
+.clip{position:absolute;inset:0;overflow:hidden;background:#000}
+#side,.arrows{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.disc{animation:spin 5s linear infinite}
+@media (min-width:700px){
+#root{flex-direction:row!important}
+#bot{display:none!important}
+#side{display:flex;flex-direction:column;width:72px}
+.vw{max-width:calc((100vh - 24px)*9/16);max-width:calc((100dvh - 24px)*9/16);height:calc(100% - 24px)}
+.clip{border-radius:16px}
+.acts{right:-68px!important}
+.arrows{display:flex}
+.tabs{display:none!important}
+#view>div.fi:not(#feed){max-width:760px;margin:0 auto;width:100%}
+}
+@media (min-width:1000px){#side{width:240px}}
+@media (max-width:999px){#side .lbl{display:none}}
+body.cr #bot{display:none!important}
 .hp{animation:pop .8s ease-out forwards}.bnc{animation:bnc .35s}.sheet{animation:up .3s cubic-bezier(.2,.9,.3,1)}.fi{animation:fade .25s ease-out}
 button:active{transform:scale(.95)}button{transition:transform .1s}
 </style>
@@ -22,8 +42,8 @@ button:active{transform:scale(.95)}button{transition:transform .1s}
 <div id="toasts" class="fixed top-4 inset-x-0 z-[60] flex flex-col items-center gap-2 pointer-events-none"></div>
 <div id="root" class="h-full flex flex-col"></div>
 <script>
-const API = ''; // leave empty when the server also serves this page
-let token = localStorage.getItem('jt'), ME = null, S = { tab: 'home', feed: 'foryou', q: '', chat: null }, V = {}, CUR = [], signup = false, _cb = null, _sv = null;
+const API = 'https://jaxtok.onrender.com';
+let token = localStorage.getItem('jt'), ME = null, S = { tab: 'home', feed: 'foryou', q: '', chat: null }, V = {}, CUR = [], signup = false, _cb = null, _sv = null, UG = false;
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const J = (b, m = 'POST') => ({ method: m, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
@@ -40,11 +60,19 @@ function toast(m, err) {
 }
 const fail = (e) => toast(e.message, 1);
 const theme = () => document.documentElement.style.setProperty('--a', ME.settings.accent || '#ec4899');
-const inp = 'w-full px-4 py-3 rounded-xl bg-white/10 text-sm outline-none focus:ring-1 focus:ring-[var(--a)]';
+const inp = 'w-full min-w-0 px-4 py-3 rounded-xl bg-white/10 text-sm outline-none focus:ring-1 focus:ring-[var(--a)]';
+let MUTE = localStorage.getItem('jt_mute') == '1', BLOCKED = false;
+const soundOn = () => !MUTE;
+
+// if the browser blocked sound, the first tap anywhere turns it on
+['pointerdown', 'keydown', 'touchend'].forEach((ev) => addEventListener(ev, () => {
+  if (!BLOCKED || MUTE) return; BLOCKED = false;
+  document.querySelectorAll('section video').forEach((v) => { v.muted = false; }); if ($('tapsnd')) $('tapsnd').remove();
+}, { passive: true }));
 
 // ---------- auth ----------
 function authView() {
-  $('root').innerHTML = `<div class="h-full flex items-center justify-center p-6 bg-gradient-to-b from-zinc-900 to-black fi">
+  $('root').innerHTML = `<div class="h-full w-full flex items-center justify-center p-6 bg-gradient-to-b from-zinc-900 to-black fi">
   <form onsubmit="auth(event)" class="w-full max-w-sm space-y-3 text-center">
     <img src="${uri(LOGO)}" class="w-20 h-20 mx-auto" alt="JaxTok">
     <h1 class="text-2xl font-extrabold">${signup ? 'Join JaxTok' : 'Welcome to JaxTok'}</h1>
@@ -65,21 +93,34 @@ function logout() { token = null; ME = null; localStorage.removeItem('jt'); clos
 
 // ---------- shell ----------
 const NAV = [['home', 'house', 'Home'], ['search', 'magnifying-glass', 'Discover'], ['upload', 'plus', ''], ['inbox', 'paper-plane', 'Inbox'], ['me', 'user', 'Profile']];
+const SIDE = [['home', 'house', 'For You'], ['search', 'compass', 'Discover'], ['following', 'user-group', 'Following'], ['inbox', 'paper-plane', 'Inbox'], ['upload', 'square-plus', 'Upload'], ['me', 'user', 'Profile']];
+// phone (<700px) = bottom bar, tablet = icon rail, PC (1000px+) = full sidebar. Layout is switched live by CSS.
+const setDev = () => { document.documentElement.dataset.dev = innerWidth < 700 ? 'phone' : innerWidth < 1000 ? 'tablet' : 'pc'; };
+setDev(); addEventListener('resize', setDev);
 function boot() {
   theme();
   api('/api/users/jaxtok').then((u) => { ME.followsJt = u.isFollowing; }).catch(() => {});
-  $('root').innerHTML = `<div id="view" class="flex-1 relative overflow-hidden"></div>
-  <nav class="shrink-0 h-14 bg-black border-t border-white/10 flex items-center justify-around text-[10px] pb-[env(safe-area-inset-bottom)] box-content">
+  $('root').innerHTML = `<aside id="side" class="shrink-0 border-r border-white/10 gap-1 p-3 overflow-y-auto ns">
+  <div class="flex items-center gap-2 px-2 py-3"><img src="${uri(LOGO)}" class="w-9 h-9" alt=""><b class="lbl text-xl font-extrabold">JaxTok</b></div>
+  ${SIDE.map(([t, i, l]) => `<button id="s-${t}" onclick="sideGo('${t}')" class="flex items-center gap-3 px-3 py-3 rounded-xl text-left hover:bg-white/5"><i class="fa-solid fa-${i} text-xl w-7 text-center"></i><b class="lbl text-base">${l}</b></button>`).join('')}</aside>
+  <div id="view" class="flex-1 relative overflow-hidden min-w-0"></div>
+  <nav id="bot" class="shrink-0 h-14 bg-black border-t border-white/10 flex items-center justify-around text-[10px] pb-[env(safe-area-inset-bottom)] box-content">
   ${NAV.map(([t, i, l]) => t == 'upload'
     ? `<button id="n-upload" onclick="go('upload')" class="w-12 h-8 rounded-lg bg-gradient-to-r from-cyan-400 to-[var(--a)] flex items-center justify-center"><i class="fa-solid fa-plus"></i></button>`
     : `<button id="n-${t}" onclick="go('${t}')" class="flex flex-col items-center gap-0.5 w-14"><i class="fa-solid fa-${i} text-lg"></i>${l}</button>`).join('')}</nav>`;
   go('home');
 }
-function hl(t) { NAV.forEach(([k]) => { const b = $('n-' + k); if (b && k != 'upload') b.style.opacity = k == t ? 1 : .5; }); }
+function hl(t) {
+  NAV.forEach(([k]) => { const b = $('n-' + k); if (b && k != 'upload') b.style.opacity = k == t ? 1 : .5; });
+  const key = t == 'home' && S.feed == 'following' ? 'following' : t;
+  SIDE.forEach(([k]) => { const b = $('s-' + k); if (b) { b.style.color = k == key ? 'var(--a)' : ''; b.style.opacity = k == key ? 1 : .85; } });
+}
+function sideGo(t) { if (t == 'home' || t == 'following') { S.feed = t == 'home' ? 'foryou' : 'following'; t = 'home'; } go(t); }
 function go(t) {
-  closeSheet(); if ($('ov')) $('ov').remove();
+  closeSheet(); if ($('ov')) $('ov').remove(); stopCam();
+  document.body.classList.toggle('cr', t == 'upload');
   S.tab = t; S.chat = null; hl(t);
-  ({ home: homeView, search: searchView, upload: uploadView, inbox: inboxView, me: () => profileView() })[t]();
+  ({ home: homeView, search: searchView, upload: createView, inbox: inboxView, me: () => profileView() })[t]();
 }
 
 // ---------- sheets ----------
@@ -96,35 +137,44 @@ const closeSheet = () => { if ($('sheet')) $('sheet').remove(); };
 // ---------- feed ----------
 const cap = (c) => esc(c).replace(/#(\w+)/g, '<b class="cursor-pointer" onclick="searchFor(\'#$1\')">#$1</b>');
 const likeIn = (v) => `<div class="w-12 h-12 rounded-full bg-black/40 flex items-center justify-center text-2xl ${v.liked ? 'text-[var(--a)]' : ''}"><i class="fa-${v.liked ? 'solid' : 'regular'} fa-heart"></i></div><span class="text-xs font-semibold">${v.likes}</span>`;
+// portrait videos fill the screen like TikTok; landscape ones stay whole
+const fitV = (v) => { v.style.objectFit = v.videoHeight > v.videoWidth ? 'cover' : 'contain'; };
+const tapV = (v) => { if (soundOn()) v.muted = false; v.paused ? v.play() : v.pause(); };
 function card(v) {
   V[v.id] = v;
-  return `<section data-v="${v.id}" ondblclick="dbl('${v.id}',event)" class="h-full w-full snap-start relative bg-black flex items-center justify-center overflow-hidden">
-  <video src="${API + v.url}" crossorigin="anonymous" loop playsinline preload="metadata" class="h-full w-full object-contain" onclick="this.paused?this.play():this.pause()"></video>
-  <div class="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black/80 to-transparent pointer-events-none"></div>
-  <div class="absolute right-3 bottom-8 flex flex-col items-center gap-4 z-10">
+  return `<section data-v="${v.id}" ondblclick="dbl('${v.id}',event)" class="h-full w-full snap-start snap-always relative bg-black flex items-center justify-center">
+  <div class="vw"><div class="clip">
+    <video src="${API + v.url}" crossorigin="anonymous" loop playsinline preload="metadata" class="h-full w-full object-contain" onloadedmetadata="fitV(this)" onclick="tapV(this)"></video>
+    <div class="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/80 to-transparent pointer-events-none"></div>
+    <button onclick="toggleMute()" class="mb absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-black/40 flex items-center justify-center text-sm"><i class="fa-solid ${MUTE ? 'fa-volume-xmark' : 'fa-volume-high'}"></i></button>
+    <div class="absolute left-4 bottom-5 right-20 z-10"><b class="text-sm cursor-pointer" onclick="openUser('${v.author}')">@${esc(v.author)}</b><p class="text-xs mt-1 line-clamp-2">${cap(v.caption)}</p>
+      <button onclick="useSound('${v.id}')" class="mt-1.5 flex items-center gap-1.5 text-xs max-w-full"><i class="fa-solid fa-music"></i><span class="truncate">original sound - @${esc(v.author)}</span></button></div>
+  </div>
+  <div class="acts absolute right-3 bottom-8 flex flex-col items-center gap-4 z-10">
     <div class="relative mb-2"><button onclick="openUser('${v.author}')" class="w-12 h-12 rounded-full border-2 border-white overflow-hidden">${avi(v.avatar, v.author, 'w-full h-full text-lg')}</button>
     ${v.author != ME.username ? `<button data-f="${v.author}" onclick="follow('${v.author}')" class="plus absolute -bottom-2 left-3.5 w-5 h-5 rounded-full bg-[var(--a)] text-xs flex items-center justify-center"><i class="fa-solid fa-plus"></i></button>` : ''}</div>
     <button data-lk="${v.id}" onclick="like('${v.id}')" class="flex flex-col items-center gap-1">${likeIn(v)}</button>
     <button onclick="comments('${v.id}')" class="flex flex-col items-center gap-1"><div class="w-12 h-12 rounded-full bg-black/40 flex items-center justify-center text-xl"><i class="fa-solid fa-comment-dots"></i></div><span data-cc="${v.id}" class="text-xs font-semibold">${v.comments.length}</span></button>
     <button onclick="share('${v.id}')" class="flex flex-col items-center gap-1"><div class="w-12 h-12 rounded-full bg-black/40 flex items-center justify-center text-xl"><i class="fa-solid fa-share"></i></div><span class="text-xs font-semibold">Share</span></button>
-  </div>
-  <div class="absolute left-4 bottom-6 right-20 z-10"><b class="text-sm cursor-pointer" onclick="openUser('${v.author}')">@${esc(v.author)}</b><p class="text-xs mt-1 line-clamp-2">${cap(v.caption)}</p></div>
-  </section>`;
+    <button onclick="useSound('${v.id}')" class="disc w-11 h-11 rounded-full bg-zinc-900 border-[6px] border-zinc-800 flex items-center justify-center overflow-hidden">${avi(v.avatar, v.author, 'w-6 h-6 text-[10px]')}</button>
+  </div></div></section>`;
 }
 function autoplay(root) {
   const io = new IntersectionObserver((es) => es.forEach((e) => {
     const v = e.target;
     if (e.isIntersecting) {
-      v.muted = !ME.settings.sound;
-      if (ME.settings.autoplay !== false) v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+      fitV(v);
+      v.muted = !soundOn();
+      if (ME.settings.autoplay !== false) v.play().catch(() => { v.muted = true; if (!MUTE) { BLOCKED = true; tapPill(); } v.play().catch(() => {}); });
     } else { v.pause(); v.currentTime = 0; }
   }), { threshold: .6 });
   root.querySelectorAll('video').forEach((v) => io.observe(v));
 }
 async function homeView() {
-  $('view').innerHTML = `<div class="absolute top-0 inset-x-0 z-20 flex justify-center gap-6 pt-3 text-sm font-bold drop-shadow">
-  ${['following', 'foryou'].map((t) => `<button onclick="S.feed='${t}';homeView()" class="pb-1 border-b-2 ${S.feed == t ? 'border-white' : 'border-transparent text-white/60'}">${t == 'foryou' ? 'For You' : 'Following'}</button>`).join('')}</div>
-  <div id="feed" class="h-full overflow-y-scroll ns snap-y snap-mandatory fi"></div>`;
+  $('view').innerHTML = `<div class="tabs absolute top-0 inset-x-0 z-20 flex justify-center gap-6 pt-3 text-sm font-bold drop-shadow">
+  ${['following', 'foryou'].map((t) => `<button onclick="S.feed='${t}';homeView();hl('home')" class="pb-1 border-b-2 ${S.feed == t ? 'border-white' : 'border-transparent text-white/60'}">${t == 'foryou' ? 'For You' : 'Following'}</button>`).join('')}</div>
+  <div id="feed" class="h-full overflow-y-scroll ns snap-y snap-mandatory fi"></div>
+  <div class="arrows fixed right-5 top-1/2 -translate-y-1/2 z-30 flex-col gap-3"><button onclick="feedGo(-1)" class="w-11 h-11 rounded-full bg-white/10"><i class="fa-solid fa-chevron-up"></i></button><button onclick="feedGo(1)" class="w-11 h-11 rounded-full bg-white/10"><i class="fa-solid fa-chevron-down"></i></button></div>`;
   try {
     const l = await api('/api/videos?tab=' + S.feed), f = $('feed');
     if (!f) return;
@@ -156,69 +206,54 @@ const thumb = (v) => `<div class="aspect-[3/4] bg-zinc-900 relative cursor-point
 
 // ---------- comments / share / stickers ----------
 const cm = (c) => `<div class="flex gap-2">${avi(c.avatar, c.author, 'w-8 h-8 text-xs')}<div class="min-w-0"><b class="text-xs text-white/60">@${esc(c.author)}</b>${c.text ? `<p class="text-sm">${esc(c.text)}</p>` : ''}${media(c)}</div></div>`;
-function comments(id) {
-  const v = V[id];
-  sheet(`<div class="p-4 h-[70vh] flex flex-col"><h3 class="text-center text-sm font-bold mb-3">${v.comments.length} comments</h3>
-  <div class="flex-1 overflow-y-auto ns space-y-3">${v.comments.map(cm).join('') || '<p class="text-center text-white/40 text-sm mt-8">No comments yet</p>'}</div>
-  <div class="flex gap-2 pt-3"><button onclick="pickSticker((s)=>postC('${id}','',s),()=>comments('${id}'))" class="text-2xl px-1"><i class="fa-regular fa-face-smile"></i></button>
-  <input id="ci" onkeydown="if(event.key=='Enter')postC('${id}')" placeholder="Add comment..." class="${inp}"><button onclick="postC('${id}')" class="px-4 rounded-xl bg-[var(--a)] text-sm font-semibold">Post</button></div></div>`);
-}
-async function postC(id, t, s) {
-  t = t || ($('ci') ? $('ci').value.trim() : '');
-  try {
-    V[id] = await api('/api/videos/' + id + '/comments', J({ text: t, sticker: s && s.id }));
-    document.querySelectorAll(`[data-cc="${id}"]`).forEach((e) => e.textContent = V[id].comments.length);
-    comments(id);
-  } catch (e) { fail(e); }
-}
 function share(id) {
-  sheet(`<div class="p-6 grid grid-cols-2 gap-4 text-center text-xs">
+  sheet(`<div class="p-5 grid grid-cols-4 gap-2 text-center text-xs">
   <button onclick="navigator.clipboard&&navigator.clipboard.writeText(location.origin+'/#'+'${id}');closeSheet();toast('Link copied')" class="space-y-2"><div class="w-14 h-14 mx-auto rounded-full bg-white/10 flex items-center justify-center text-xl"><i class="fa-solid fa-link"></i></div>Copy link</button>
-  <button onclick="mkSticker('${id}')" class="space-y-2"><div class="w-14 h-14 mx-auto rounded-full bg-white/10 flex items-center justify-center text-xl"><i class="fa-solid fa-note-sticky"></i></div>Create sticker</button></div>`);
-}
-function mkSticker(id) {
-  _sv = document.querySelector(`[data-v="${id}"] video`); _sv.pause();
-  const W = 320, H = Math.round(W * (_sv.videoHeight || W) / (_sv.videoWidth || W));
-  sheet(`<div class="p-5 space-y-3 text-center"><h3 class="font-bold text-sm">Create sticker</h3>
-  <canvas id="sc" width="${W}" height="${H}" class="mx-auto rounded-2xl max-h-[40vh] bg-zinc-800"></canvas>
-  <input id="st" oninput="drawS()" maxlength="24" placeholder="Add text (optional)" class="${inp}">
-  <button onclick="saveSticker()" class="w-full py-3 rounded-xl font-semibold bg-[var(--a)]">Save sticker</button></div>`);
-  drawS();
-}
-function drawS() {
-  const c = $('sc'), x = c.getContext('2d'), t = $('st').value;
-  x.clearRect(0, 0, c.width, c.height); x.save();
-  if (x.roundRect) { x.beginPath(); x.roundRect(0, 0, c.width, c.height, 28); x.clip(); }
-  x.drawImage(_sv, 0, 0, c.width, c.height); x.restore();
-  if (t) { x.font = '800 34px system-ui'; x.textAlign = 'center'; x.lineWidth = 8; x.lineJoin = 'round'; x.strokeStyle = '#000'; x.strokeText(t, c.width / 2, c.height - 24, c.width - 20); x.fillStyle = '#fff'; x.fillText(t, c.width / 2, c.height - 24, c.width - 20); }
-}
-function saveSticker() {
-  try {
-    $('sc').toBlob(async (b) => {
-      if (!b) return toast('Could not capture this frame', 1);
-      const fd = new FormData(); fd.append('name', $('st').value || 'sticker'); fd.append('sticker', b, 'sticker.png');
-      try { await api('/api/stickers', { method: 'POST', body: fd }); closeSheet(); toast('Sticker saved! Use it in comments and messages'); } catch (e) { fail(e); }
-    }, 'image/png');
-  } catch (e) { toast('Could not capture this frame', 1); }
-}
-async function pickSticker(cb, back) {
-  _cb = cb;
-  try {
-    const l = await api('/api/stickers');
-    sheet(`<div class="p-4"><div class="flex items-center justify-between mb-3"><h3 class="font-bold text-sm">Stickers</h3><button onclick="${back ? 'closeSheet();(' + back + ')()' : 'closeSheet()'}" class="text-white/60 text-sm">Back</button></div>
-    <div class="grid grid-cols-3 gap-3">${l.map((s) => `<button onclick="_cb(${esc(JSON.stringify(s))})" class="aspect-square bg-white/5 rounded-xl p-1"><img src="${API + s.url}" class="w-full h-full object-contain"></button>`).join('')}</div>
-    ${l.length ? '' : '<p class="text-center text-white/40 text-sm py-8">No stickers yet. Tap Share → Create sticker on any video.</p>'}</div>`);
-  } catch (e) { fail(e); }
+  <button onclick="mkSticker('${id}')" class="space-y-2"><div class="w-14 h-14 mx-auto rounded-full bg-white/10 flex items-center justify-center text-xl"><i class="fa-solid fa-note-sticky"></i></div>Create sticker</button>
+  <button onclick="saveSound('${id}')" class="space-y-2"><div class="w-14 h-14 mx-auto rounded-full bg-white/10 flex items-center justify-center text-xl"><i class="fa-solid fa-music"></i></div>Save sound</button>
+  <button onclick="saveVideo('${id}')" class="space-y-2"><div class="w-14 h-14 mx-auto rounded-full bg-[var(--a)] flex items-center justify-center text-xl"><i class="fa-solid fa-download"></i></div>Save video</button></div>`);
 }
 
-// ---------- follow / profile ----------
+// ---------- sounds: save the audio of any video, then use it in comments and messages ----------
+const getSounds = () => { try { return JSON.parse(localStorage.getItem('jt_sounds')) || []; } catch (e) { return []; } };
+function toWav(buf, secs) {
+  const sr = buf.sampleRate, n = Math.min(buf.length, Math.floor(sr * secs)), ch = buf.numberOfChannels, o = new DataView(new ArrayBuffer(44 + n * 2));
+  const w = (p, s) => [...s].forEach((c, i) => o.setUint8(p + i, c.charCodeAt(0)));
+  w(0, 'RIFF'); o.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); o.setUint32(16, 16, true); o.setUint16(20, 1, true); o.setUint16(22, 1, true);
+  o.setUint32(24, sr, true); o.setUint32(28, sr * 2, true); o.setUint16(32, 2, true); o.setUint16(34, 16, true); w(36, 'data'); o.setUint32(40, n * 2, true);
+  const d = []; for (let c = 0; c < ch; c++) d.push(buf.getChannelData(c));
+  for (let i = 0; i < n; i++) { let s = 0; for (let c = 0; c < ch; c++) s += d[c][i]; s = Math.max(-1, Math.min(1, s / ch)); o.setInt16(44 + i * 2, s < 0 ? s * 32768 : s * 32767, true); }
+  return new Blob([o], { type: 'audio/wav' });
+}
+async function saveSound(id) {
+  const v = V[id]; toast('Grabbing sound...');
+  try {
+    const ab = await (await fetch(API + v.url)).arrayBuffer(), ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const buf = await new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej)); ctx.close();
+    const fd = new FormData(); fd.append('media', toWav(buf, 15), 'sound.wav');
+    const u = (await api('/api/media', { method: 'POST', body: fd })).url, l = getSounds();
+    l.unshift({ url: u, name: '@' + v.author + ' original sound' });
+    localStorage.setItem('jt_sounds', JSON.stringify(l.slice(0, 30)));
+    closeSheet(); toast('Sound saved! Tap the music note in comments or messages');
+  } catch (e) { toast('Could not get the sound from this video', 1); }
+}
+function pickSound(cb, back) {
+  _cb = cb; const l = getSounds();
+  sheet(`<div class="p-4"><div class="flex items-center justify-between mb-3"><h3 class="font-bold text-sm">Sounds</h3><button onclick="${back ? 'closeSheet();(' + back + ')()' : 'closeSheet()'}" class="text-white/60 text-sm">Back</button></div>
+  <div class="space-y-2">${l.map((s, i) => `<div class="p-2 bg-white/5 rounded-xl space-y-1"><p class="text-xs text-white/60">${esc(s.name)}</p><div class="flex items-center gap-2"><audio controls preload="none" src="${API + s.url}" class="h-9 flex-1 min-w-0"></audio><button onclick="_cb(getSounds()[${i}])" class="px-4 py-2 rounded-lg bg-[var(--a)] text-xs font-semibold">Use</button></div></div>`).join('')}</div>
+  ${l.length ? '' : '<p class="text-center text-white/40 text-sm py-8">No sounds yet. Tap Share, then Save sound, on any video.</p>'}</div>`);
+}
+
 async function follow(n) {
   try {
     const d = await api('/api/users/' + n + '/follow', { method: 'POST' });
+    if (n == 'jaxtok') ME.followsJt = d.following;
     document.querySelectorAll(`[data-f="${n}"]`).forEach((e) => e.classList.contains('plus') ? e.remove() : e.textContent = d.following ? 'Following' : 'Follow');
     toast(d.following ? 'Following @' + n : 'Unfollowed @' + n);
   } catch (e) { fail(e); }
 }
+
+// ---------- profile ----------
 function openUser(n) { closeSheet(); if ($('ov')) $('ov').remove(); S.tab = 'me'; hl(n == ME.username ? 'me' : ''); profileView(n); }
 async function profileView(n) {
   n = n || ME.username;
@@ -234,25 +269,7 @@ async function profileView(n) {
     </div><div class="grid grid-cols-3 gap-0.5">${p.videos.map(thumb).join('') || '<p class="col-span-3 text-center text-white/40 text-sm py-10">No videos yet</p>'}</div></div>`;
   } catch (e) { fail(e); }
 }
-const EMOJI = ['😎', '🦊', '🐼', '🐸', '🦄', '🐙', '👻', '🤖', '🔥', '🌈'], COLORS = ['#ec4899', '#22d3ee', '#a78bfa', '#f59e0b', '#22c55e', '#ef4444'];
-function settings() {
-  const s = ME.settings;
-  sheet(`<div class="p-5 space-y-4"><h3 class="font-bold text-center">Settings</h3>
-  <div><p class="text-xs text-white/50 mb-2">Avatar</p><div class="flex flex-wrap gap-2">${EMOJI.map((e) => `<button onclick="this.parentNode.dataset.v='${e}';[...this.parentNode.children].forEach(b=>b.style.outline='');this.style.outline='2px solid var(--a)'" class="text-3xl rounded-xl p-1" ${e == ME.avatar ? 'style="outline:2px solid var(--a)"' : ''}>${e}</button>`).join('')}</div></div>
-  <div><p class="text-xs text-white/50 mb-2">Bio</p><textarea id="bio" rows="2" maxlength="160" class="${inp} resize-none">${esc(ME.bio)}</textarea></div>
-  <div><p class="text-xs text-white/50 mb-2">Accent color</p><div id="ac" data-v="${s.accent || '#ec4899'}" class="flex gap-3">${COLORS.map((c) => `<button onclick="this.parentNode.dataset.v='${c}';document.documentElement.style.setProperty('--a','${c}');[...this.parentNode.children].forEach(b=>b.style.outline='');this.style.outline='2px solid #fff'" class="w-8 h-8 rounded-full" style="background:${c};${c == (s.accent || '#ec4899') ? 'outline:2px solid #fff' : ''}"></button>`).join('')}</div></div>
-  <label class="flex justify-between text-sm"><span>Play videos with sound</span><input id="snd" type="checkbox" ${s.sound ? 'checked' : ''} class="accent-[var(--a)] w-5 h-5"></label>
-  <label class="flex justify-between text-sm"><span>Autoplay videos</span><input id="aut" type="checkbox" ${s.autoplay !== false ? 'checked' : ''} class="accent-[var(--a)] w-5 h-5"></label>
-  <button onclick="saveSettings()" class="w-full py-3 rounded-xl font-semibold bg-[var(--a)]">Save</button>
-  <button onclick="logout()" class="w-full py-3 rounded-xl font-semibold bg-white/10 text-red-400">Sign out</button></div>`);
-}
-async function saveSettings() {
-  const emo = document.querySelector('#sheet .flex-wrap').dataset.v;
-  try {
-    ME = await api('/api/me', J({ bio: $('bio').value, avatar: emo || ME.avatar, settings: { accent: $('ac').dataset.v, sound: $('snd').checked, autoplay: $('aut').checked } }, 'PUT'));
-    theme(); closeSheet(); toast('Saved'); profileView();
-  } catch (e) { fail(e); }
-}
+const COLORS = ['#ec4899', '#22d3ee', '#a78bfa', '#f59e0b', '#22c55e', '#ef4444'];
 
 // ---------- discover ----------
 const searchFor = (t) => { S.q = t; go('search'); };
@@ -290,7 +307,7 @@ async function publish() {
   if (!window._f) return toast('Choose or record a video first', 1);
   const b = $('pub'); b.disabled = true; b.textContent = 'Uploading...';
   const fd = new FormData(); fd.append('caption', $('cp').value.trim() || 'No caption'); fd.append('video', window._f, window._f.name || 'video.mp4');
-  try { await api('/api/videos', { method: 'POST', body: fd }); toast('Posted!'); S.feed = 'foryou'; go('home'); }
+  try { await api('/api/videos', { method: 'POST', body: fd }); toast('Posted!'); SND = null; S.feed = 'foryou'; go('home'); }
   catch (e) { fail(e); b.disabled = false; b.textContent = 'Post'; }
 }
 
@@ -303,22 +320,6 @@ async function inboxView() {
   } catch (e) { fail(e); }
 }
 const bub = (m) => { const me = m.from == ME.username; return `<div class="flex ${me ? 'justify-end' : ''}"><div class="${me ? 'bg-[var(--a)]' : 'bg-white/10'} rounded-2xl px-3 py-2 max-w-[75%] text-sm">${m.text ? esc(m.text) : ''}${media(m)}</div></div>`; };
-async function openChat(u) {
-  if (!u) return;
-  try {
-    const m = await api('/api/messages/' + u); closeSheet(); if ($('ov')) $('ov').remove();
-    S.tab = 'inbox'; S.chat = u; hl('inbox');
-    $('view').innerHTML = `<div class="h-full flex flex-col fi"><div class="p-3 flex items-center gap-3 border-b border-white/10"><button onclick="go('inbox')"><i class="fa-solid fa-chevron-left"></i></button><b>@${esc(u)}</b></div>
-    <div id="ml" class="flex-1 overflow-y-auto ns p-3 space-y-2">${m.map(bub).join('')}</div>
-    <div class="p-3 flex gap-2 border-t border-white/10"><button onclick="pickSticker((s)=>sendM('',s))" class="text-2xl px-1"><i class="fa-regular fa-face-smile"></i></button><input id="mi" onkeydown="if(event.key=='Enter')sendM()" placeholder="Message..." class="${inp}"><button onclick="sendM()" class="px-4 rounded-xl bg-[var(--a)] text-sm font-semibold">Send</button></div></div>`;
-    $('ml').scrollTop = 1e9;
-  } catch (e) { fail(e); }
-}
-async function sendM(t, s) {
-  t = t || ($('mi') ? $('mi').value.trim() : '');
-  if (!t && !s) return;
-  try { await api('/api/messages/' + S.chat, J({ text: t, sticker: s && s.id })); openChat(S.chat); } catch (e) { fail(e); }
-}
 setInterval(async () => {
   if (S.tab == 'inbox' && S.chat && $('ml') && !$('sheet')) {
     const m = await api('/api/messages/' + S.chat).catch(() => 0);
@@ -326,7 +327,7 @@ setInterval(async () => {
   }
 }, 4000);
 
-// ---------- v3: logo, avatars, ads, photo + voice, sticker crop ----------
+// ---------- logo, avatars, ads, photo + voice ----------
 const logoIn = (bg, fg) => `<rect width="100" height="100" rx="24" fill="${bg}"/><path d="M62 22v34a18 18 0 0 1-18 18h-6" fill="none" stroke="${fg}" stroke-width="12" stroke-linecap="round"/><path d="M22 28l22 12-22 12z" fill="${fg}"/>`;
 const LOGO = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ec4899"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>${logoIn('url(#g)', '#fff')}</svg>`;
 const uri = (x) => 'data:image/svg+xml,' + encodeURIComponent(x);
@@ -337,21 +338,23 @@ const avi = (src, n, cls = 'w-10 h-10') => src && src[0] == '/'
 const stk = (u, c = 'w-24') => /\.(webm|mp4)$/.test(u) ? `<video src="${API + u}" autoplay loop muted playsinline class="${c} rounded-xl"></video>` : `<img src="${API + u}" class="${c}">`;
 const media = (c) => (c.sticker ? `<div class="mt-1">${stk(c.sticker, 'w-28')}</div>` : '') + (c.image ? `<img src="${API + c.image}" class="mt-1 rounded-xl max-h-48 max-w-full">` : '') + (c.audio ? `<audio controls src="${API + c.audio}" class="mt-1 h-9 max-w-full"></audio>` : '');
 
-// ads: an image every 5 videos (every 10 if you follow @jaxtok)
-const adSvg = (i, f) => { const c = [['#ec4899', '#22d3ee'], ['#a78bfa', '#f59e0b'], ['#22c55e', '#22d3ee']][i % 3];
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 640"><defs><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c[0]}"/><stop offset="1" stop-color="${c[1]}"/></linearGradient></defs><rect width="360" height="640" fill="url(#b)"/><g transform="translate(110 130) scale(1.4)">${logoIn('#fff', c[0])}</g><g font-family="system-ui,sans-serif" fill="#fff" text-anchor="middle"><text x="180" y="360" font-size="46" font-weight="800">JaxTok</text><text x="180" y="410" font-size="28" font-weight="700">${f ? 'Thanks for following!' : 'Having fun?'}</text><text x="180" y="450" font-size="17" opacity=".9">${f ? 'You will see fewer ads.' : 'Follow this account for fewer ads.'}</text></g></svg>`; };
-const adCard = (i) => `<section class="h-full w-full snap-start relative bg-black overflow-hidden"><img src="${uri(adSvg(i, ME.followsJt))}" class="w-full h-full object-cover" alt="Ad"><span class="absolute top-14 left-3 text-[10px] bg-black/50 px-2 py-0.5 rounded">Ad</span>${ME.followsJt ? '' : `<button data-f="jaxtok" onclick="follow('jaxtok')" class="absolute bottom-16 left-1/2 -translate-x-1/2 px-8 py-3 rounded-full bg-white text-black font-bold text-sm">Follow</button>`}</section>`;
-function withAds(l) { const n = ME.followsJt ? 10 : 5; let h = '', a = 0; l.forEach((v, i) => { h += card(v); if ((i + 1) % n == 0) h += adCard(a++); }); return h; }
-async function follow(n) {
-  try {
-    const d = await api('/api/users/' + n + '/follow', { method: 'POST' });
-    if (n == 'jaxtok') ME.followsJt = d.following;
-    document.querySelectorAll(`[data-f="${n}"]`).forEach((e) => e.classList.contains('plus') ? e.remove() : e.textContent = d.following ? 'Following' : 'Follow');
-    toast(d.following ? 'Following @' + n : 'Unfollowed @' + n);
-  } catch (e) { fail(e); }
+// ads: a full-screen card every 5 videos (every 10 if you follow @jaxtok); short feeds get one at the end
+const adCard = (i) => {
+  const c = [['#ec4899', '#22d3ee'], ['#a78bfa', '#f59e0b'], ['#22c55e', '#22d3ee']][i % 3], f = ME.followsJt;
+  return `<section class="h-full w-full snap-start snap-always bg-black flex items-center justify-center"><div class="vw"><div class="clip flex flex-col items-center justify-center text-center px-8 gap-3" style="background:linear-gradient(160deg,${c[0]},${c[1]})">
+  <span class="absolute top-4 left-3 text-[10px] bg-black/50 px-2 py-0.5 rounded">Ad</span>
+  <svg viewBox="0 0 100 100" class="w-28 h-28 mb-2" xmlns="http://www.w3.org/2000/svg">${logoIn('#fff', c[0])}</svg>
+  <h2 class="text-5xl font-extrabold">JaxTok</h2><p class="text-2xl font-bold">${f ? 'Thanks for following!' : 'Having fun?'}</p>
+  <p class="text-sm opacity-90">${f ? 'You will see fewer ads.' : 'Follow this account for fewer ads.'}</p>
+  ${f ? '' : `<button data-f="jaxtok" onclick="follow('jaxtok')" class="mt-4 px-10 py-3 rounded-full bg-white text-black font-bold text-sm">Follow</button>`}</div></div></section>`;
+};
+function withAds(l) {
+  const n = ME.followsJt ? 10 : 5; let h = '', a = 0;
+  l.forEach((v, i) => { h += card(v); if ((i + 1) % n == 0) h += adCard(a++); });
+  if (l.length && l.length < n) h += adCard(a);
+  return h;
 }
 
-// photo + voice uploads
 async function upImg(i, cb) {
   const f = i.files[0]; if (!f) return;
   const fd = new FormData(); fd.append('media', f, f.name);
@@ -372,16 +375,26 @@ async function voice(btn, cb) {
     r.start(); setTimeout(() => _rec === r && r.stop(), 60000);
   } catch (e) { toast('Microphone not available', 1); }
 }
-const tools = (onSticker, onImg, onVoice) => `<button onclick="${onSticker}" class="text-xl px-1.5"><i class="fa-solid fa-note-sticky"></i></button>
+const tools = (onSticker, onImg, onVoice, onSound) => `<button onclick="${onSticker}" class="text-xl px-1.5"><i class="fa-solid fa-note-sticky"></i></button>
   <label class="text-xl px-1.5 cursor-pointer"><i class="fa-regular fa-image"></i><input type="file" accept="image/*" class="hidden" onchange="upImg(this,${onImg})"></label>
-  <button onclick="voice(this,${onVoice})" class="text-xl px-1.5"><i class="fa-solid fa-microphone"></i></button>`;
+  <button onclick="voice(this,${onVoice})" class="text-xl px-1.5"><i class="fa-solid fa-microphone"></i></button>
+  <button onclick="${onSound}" class="text-xl px-1.5"><i class="fa-solid fa-music"></i></button>`;
 
+// comment bar: avatar + pill input with photo, sticker, voice, sound and @ inside it
 function comments(id) {
   const v = V[id];
-  sheet(`<div class="p-4 h-[70vh] flex flex-col"><h3 class="text-center text-sm font-bold mb-3">${v.comments.length} comments</h3>
+  sheet(`<div class="p-4 h-[70vh] flex flex-col bg-[#1c1c1c] rounded-t-3xl"><h3 class="text-center text-sm font-bold mb-3">${v.comments.length} comments</h3>
   <div class="flex-1 overflow-y-auto ns space-y-3">${v.comments.map(cm).join('') || '<p class="text-center text-white/40 text-sm mt-8">No comments yet</p>'}</div>
-  <div class="flex items-center gap-1 pt-3">${tools(`pickSticker((s)=>postC('${id}','',s),()=>comments('${id}'))`, `(u)=>postC('${id}','',null,{image:u})`, `(u)=>postC('${id}','',null,{audio:u})`)}
-  <input id="ci" onkeydown="if(event.key=='Enter')postC('${id}')" placeholder="Add comment..." class="${inp}"><button onclick="postC('${id}')" class="px-4 py-3 rounded-xl bg-[var(--a)] text-sm font-semibold">Post</button></div></div>`);
+  <div class="flex items-center gap-2 pt-3 pb-[env(safe-area-inset-bottom)]">${avi(ME.avatar, ME.username, 'w-10 h-10')}
+    <div class="flex-1 min-w-0 flex items-center bg-[#3a3a3a] rounded-full h-12 pl-4 pr-2">
+      <input id="ci" oninput="$('csend').classList.toggle('hidden',!this.value.trim())" onkeydown="if(event.key=='Enter')postC('${id}')" placeholder="Add comment..." class="flex-1 min-w-0 bg-transparent outline-none text-sm placeholder:text-white/40">
+      <label class="px-1.5 text-lg cursor-pointer"><i class="fa-regular fa-image"></i><input type="file" accept="image/*" class="hidden" onchange="upImg(this,(u)=>postC('${id}','',null,{image:u}))"></label>
+      <button onclick="pickSticker((s)=>postC('${id}','',s),()=>comments('${id}'))" class="px-1.5 text-lg"><i class="fa-regular fa-note-sticky"></i></button>
+      <button onclick="voice(this,(u)=>postC('${id}','',null,{audio:u}))" class="px-1.5 text-lg"><i class="fa-solid fa-microphone"></i></button>
+      <button onclick="pickSound((s)=>postC('${id}','',null,{audio:s.url}),()=>comments('${id}'))" class="px-1.5 text-lg"><i class="fa-solid fa-music"></i></button>
+      <button onclick="$('ci').value+='@';$('ci').focus();$('csend').classList.remove('hidden')" class="px-1.5 text-lg"><i class="fa-solid fa-at"></i></button>
+      <button id="csend" onclick="postC('${id}')" class="hidden ml-1 w-8 h-8 rounded-full bg-[var(--a)] text-xs shrink-0"><i class="fa-solid fa-arrow-up"></i></button>
+    </div></div></div>`);
 }
 async function postC(id, t, s, x) {
   t = t || ($('ci') ? $('ci').value.trim() : '');
@@ -398,7 +411,7 @@ async function openChat(u) {
     S.tab = 'inbox'; S.chat = u; hl('inbox');
     $('view').innerHTML = `<div class="h-full flex flex-col fi"><div class="p-3 flex items-center gap-3 border-b border-white/10"><button onclick="go('inbox')"><i class="fa-solid fa-chevron-left"></i></button><b>@${esc(u)}</b></div>
     <div id="ml" class="flex-1 overflow-y-auto ns p-3 space-y-2">${m.map(bub).join('')}</div>
-    <div class="p-3 flex items-center gap-1 border-t border-white/10">${tools("pickSticker((s)=>sendM('',s))", "(u)=>sendM('',null,{image:u})", "(u)=>sendM('',null,{audio:u})")}<input id="mi" onkeydown="if(event.key=='Enter')sendM()" placeholder="Message..." class="${inp}"><button onclick="sendM()" class="px-4 py-3 rounded-xl bg-[var(--a)] text-sm font-semibold">Send</button></div></div>`;
+    <div class="p-3 flex items-center gap-1 border-t border-white/10">${tools("pickSticker((s)=>sendM('',s))", "(u)=>sendM('',null,{image:u})", "(u)=>sendM('',null,{audio:u})", "pickSound((s)=>sendM('',null,{audio:s.url}))")}<input id="mi" onkeydown="if(event.key=='Enter')sendM()" placeholder="Message..." class="${inp}"><button onclick="sendM()" class="px-4 py-3 rounded-xl bg-[var(--a)] text-sm font-semibold">Send</button></div></div>`;
     $('ml').scrollTop = 1e9;
   } catch (e) { fail(e); }
 }
@@ -407,36 +420,51 @@ async function sendM(t, s, x) {
   if (!t && !s && !x) return;
   try { await api('/api/messages/' + S.chat, J({ text: t, sticker: s && s.id, ...(x || {}) })); openChat(S.chat); } catch (e) { fail(e); }
 }
+
+// sticker picker: tap + to add your own video or image as a sticker
+let _pk = [];
 async function pickSticker(cb, back) {
-  _cb = cb;
+  _cb = cb; _pk = [cb, back];
   try {
     const l = await api('/api/stickers');
     sheet(`<div class="p-4"><div class="flex items-center justify-between mb-3"><h3 class="font-bold text-sm">Stickers</h3><button onclick="${back ? 'closeSheet();(' + back + ')()' : 'closeSheet()'}" class="text-white/60 text-sm">Back</button></div>
-    <div class="grid grid-cols-3 gap-3">${l.map((s) => `<button onclick="_cb(${esc(JSON.stringify(s))})" class="aspect-square bg-white/5 rounded-xl p-1 flex items-center justify-center">${stk(s.url, 'max-w-full max-h-full')}</button>`).join('')}</div>
-    ${l.length ? '' : '<p class="text-center text-white/40 text-sm py-8">No stickers yet. Tap Share, then Create sticker, on any video.</p>'}</div>`);
+    <div class="grid grid-cols-3 gap-3"><label class="aspect-square rounded-xl border-2 border-dashed border-white/30 flex flex-col items-center justify-center gap-1 text-xs text-white/70 cursor-pointer"><i class="fa-solid fa-plus text-xl"></i>Add<input type="file" accept="image/*,video/*" class="hidden" onchange="stickerFile(this)"></label>
+    ${l.map((s) => `<button onclick="_cb(${esc(JSON.stringify(s))})" class="aspect-square bg-white/5 rounded-xl p-1 flex items-center justify-center">${stk(s.url, 'max-w-full max-h-full')}</button>`).join('')}</div></div>`);
   } catch (e) { fail(e); }
 }
+function stickerFile(i) {
+  const f = i.files[0]; if (!f) return;
+  const [cb, back] = _pk, img = f.type.startsWith('image/');
+  const el = img ? new Image() : Object.assign(document.createElement('video'), { muted: true, loop: true, playsInline: true, preload: 'auto' });
+  el.onerror = () => toast('Could not open that file', 1);
+  el[img ? 'onload' : 'onloadeddata'] = () => { mkSticker(null, el); SC.back = () => pickSticker(cb, back); };
+  el.src = URL.createObjectURL(f);
+}
 
-// sticker creator: crop ratio + still / 2.5s / 5s clip
+// sticker creator: crop ratio, pick the frame/start, and length from frozen (0) up to 5s
 let SC = { r: 1, len: 0 };
-function mkSticker(id) {
-  _sv = document.querySelector(`[data-v="${id}"] video`); _sv.pause(); SC = { r: 1, len: 0 };
+function mkSticker(id, el) {
+  _sv = el || document.querySelector(`[data-v="${id}"] video`); if (_sv.pause) _sv.pause(); SC = { r: 1, len: 0 };
+  const vid = _sv.tagName == 'VIDEO', dur = vid && isFinite(_sv.duration) ? Math.floor(_sv.duration * 10) / 10 : 0;
   sheet(`<div class="p-5 space-y-3 text-center"><h3 class="font-bold text-sm">Create sticker</h3>
-  <canvas id="sc" class="mx-auto rounded-2xl max-h-[38vh] max-w-full bg-zinc-800"></canvas>
+  <canvas id="sc" class="mx-auto rounded-2xl max-h-[34vh] max-w-full bg-zinc-800"></canvas>
   <div class="flex justify-center gap-2">${[['16:9', 16 / 9], ['1:1', 1], ['4:3', 4 / 3]].map(([l, r]) => `<button data-r="${r}" onclick="SC.r=${r};drawS();optHl()" class="px-3 py-1.5 rounded-lg bg-white/10 text-xs">${l}</button>`).join('')}</div>
-  <div class="flex justify-center gap-2">${[['Still', 0], ['2.5s clip', 2.5], ['5s clip', 5]].map(([l, n]) => `<button data-l="${n}" onclick="SC.len=${n};optHl()" class="px-3 py-1.5 rounded-lg bg-white/10 text-xs">${l}</button>`).join('')}</div>
+  ${vid ? `<div class="text-left"><p class="text-xs text-white/60 mb-1">Frame / start: <b id="ts">${_sv.currentTime.toFixed(1)}s</b></p>
+    <input type="range" min="0" max="${dur}" step="0.1" value="${_sv.currentTime}" oninput="seekS(this.value)" class="w-full accent-[var(--a)]">
+    <p class="text-xs text-white/60 mt-2 mb-1">Length: <b id="ll">Frozen (still)</b></p>
+    <input type="range" min="0" max="5" step="0.5" value="0" oninput="SC.len=+this.value;$('ll').textContent=SC.len?SC.len+'s clip':'Frozen (still)'" class="w-full accent-[var(--a)]"></div>` : ''}
   <input id="st" oninput="drawS()" maxlength="24" placeholder="Add text (optional)" class="${inp}">
   <button id="sv" onclick="saveSticker()" class="w-full py-3 rounded-xl font-semibold bg-[var(--a)]">Save sticker</button></div>`);
   optHl(); drawS();
 }
+function seekS(t) { $('ts').textContent = (+t).toFixed(1) + 's'; _sv.onseeked = drawS; _sv.currentTime = +t; }
 function optHl() {
   document.querySelectorAll('#sheet [data-r]').forEach((b) => b.style.outline = +b.dataset.r === SC.r ? '2px solid var(--a)' : '');
-  document.querySelectorAll('#sheet [data-l]').forEach((b) => b.style.outline = +b.dataset.l === SC.len ? '2px solid var(--a)' : '');
 }
 function drawS() {
   const c = $('sc'); if (!c) return;
   const W = 320, H = Math.round(W / SC.r); if (c.width != W || c.height != H) { c.width = W; c.height = H; }
-  const x = c.getContext('2d'), t = $('st').value, vw = _sv.videoWidth || W, vh = _sv.videoHeight || W, k = Math.max(W / vw, H / vh);
+  const x = c.getContext('2d'), t = $('st').value, vw = _sv.videoWidth || _sv.naturalWidth || W, vh = _sv.videoHeight || _sv.naturalHeight || W, k = Math.max(W / vw, H / vh);
   x.clearRect(0, 0, W, H); x.save();
   if (x.roundRect) { x.beginPath(); x.roundRect(0, 0, W, H, 28); x.clip(); }
   x.drawImage(_sv, (W - vw * k) / 2, (H - vh * k) / 2, vw * k, vh * k); x.restore();
@@ -446,7 +474,7 @@ async function saveSticker() {
   const c = $('sc'), b = $('sv'), name = $('st').value || 'sticker';
   const send = async (blob, fn) => {
     const fd = new FormData(); fd.append('name', name); fd.append('sticker', blob, fn);
-    try { await api('/api/stickers', { method: 'POST', body: fd }); closeSheet(); toast('Sticker saved!'); } catch (e) { fail(e); b.disabled = false; b.textContent = 'Save sticker'; }
+    try { await api('/api/stickers', { method: 'POST', body: fd }); closeSheet(); toast('Sticker saved!'); if (SC.back) SC.back(); } catch (e) { fail(e); b.disabled = false; b.textContent = 'Save sticker'; }
   };
   b.disabled = true;
   if (!SC.len) { c.toBlob((bl) => bl ? send(bl, 's.png') : toast('Could not capture this frame', 1), 'image/png'); return; }
@@ -455,11 +483,11 @@ async function saveSticker() {
   const ch = [], rec = new MediaRecorder(c.captureStream(30));
   rec.ondataavailable = (e) => e.data.size && ch.push(e.data);
   rec.onstop = () => send(new Blob(ch, { type: (rec.mimeType || 'video/webm').split(';')[0] }), 'clip');
-  const t0 = performance.now(); _sv.muted = true; rec.start(); try { await _sv.play(); } catch (e) {}
+  const t0 = performance.now(); _sv.muted = true; _sv.loop = true; rec.start(); try { await _sv.play(); } catch (e) {}
   (function loop() { drawS(); if (performance.now() - t0 < SC.len * 1000) requestAnimationFrame(loop); else { rec.stop(); _sv.pause(); } })();
 }
 
-// settings: photo upload / default picture
+// settings
 function settings() {
   const s = ME.settings;
   sheet(`<div class="p-5 space-y-4"><h3 class="font-bold text-center">Settings</h3>
@@ -468,7 +496,7 @@ function settings() {
     <button onclick="clearAvatar()" class="px-4 py-2 rounded-lg bg-white/10 text-xs font-semibold">Use default picture</button></div></div>
   <div><p class="text-xs text-white/50 mb-2">Bio</p><textarea id="bio" rows="2" maxlength="160" class="${inp} resize-none">${esc(ME.bio)}</textarea></div>
   <div><p class="text-xs text-white/50 mb-2">Accent color</p><div id="ac" data-v="${s.accent || '#ec4899'}" class="flex gap-3">${COLORS.map((c) => `<button onclick="this.parentNode.dataset.v='${c}';document.documentElement.style.setProperty('--a','${c}');[...this.parentNode.children].forEach(b=>b.style.outline='');this.style.outline='2px solid #fff'" class="w-8 h-8 rounded-full" style="background:${c};${c == (s.accent || '#ec4899') ? 'outline:2px solid #fff' : ''}"></button>`).join('')}</div></div>
-  <label class="flex justify-between text-sm"><span>Play videos with sound</span><input id="snd" type="checkbox" ${s.sound ? 'checked' : ''} class="accent-[var(--a)] w-5 h-5"></label>
+  <label class="flex justify-between text-sm"><span>Play videos with sound</span><input id="snd" type="checkbox" ${!MUTE ? 'checked' : ''} class="accent-[var(--a)] w-5 h-5"></label>
   <label class="flex justify-between text-sm"><span>Autoplay videos</span><input id="aut" type="checkbox" ${s.autoplay !== false ? 'checked' : ''} class="accent-[var(--a)] w-5 h-5"></label>
   <button onclick="saveSettings()" class="w-full py-3 rounded-xl font-semibold bg-[var(--a)]">Save</button>
   <button onclick="logout()" class="w-full py-3 rounded-xl font-semibold bg-white/10 text-red-400">Sign out</button></div>`);
@@ -482,14 +510,251 @@ async function setAvatar(i) {
 async function clearAvatar() { try { pfUpdate(await api('/api/me', J({ avatar: '', settings: ME.settings }, 'PUT'))); } catch (e) { fail(e); } }
 async function saveSettings() {
   try {
-    const f = ME.followsJt;
+    const f = ME.followsJt; MUTE = !$('snd').checked; localStorage.setItem('jt_mute', MUTE ? '1' : '');
     ME = await api('/api/me', J({ bio: $('bio').value, settings: { accent: $('ac').dataset.v, sound: $('snd').checked, autoplay: $('aut').checked } }, 'PUT'));
     ME.followsJt = f; theme(); closeSheet(); toast('Saved'); profileView();
   } catch (e) { fail(e); }
 }
 
+// ---------- save video with animated JaxTok watermark + outro ----------
+const WM = new Image(); WM.src = uri(LOGO.replace('<svg ', '<svg width="200" height="200" '));
+async function saveVideo(id) {
+  const v = V[id]; closeSheet();
+  if (!window.MediaRecorder) return toast('Saving videos is not supported in this browser', 1);
+  const ac = new (window.AudioContext || window.webkitAudioContext)(); ac.resume();
+  const el = document.createElement('video'); el.crossOrigin = 'anonymous'; el.playsInline = true; el.src = API + v.url;
+  const ov = document.createElement('div');
+  ov.className = 'fixed inset-0 z-[70] bg-black/85 flex flex-col items-center justify-center gap-3 text-center p-8 fi';
+  ov.innerHTML = `<img src="${uri(LOGO)}" class="w-16 h-16"><b>Saving video...</b><p id="svp" class="text-sm text-white/60">Keep this tab open</p>`;
+  document.body.appendChild(ov);
+  const done = (m) => { ov.remove(); ac.close().catch(() => {}); if (m) toast(m, 1); };
+  try { await el.play(); el.pause(); await WM.decode().catch(() => {}); } catch (e) { return done('Could not load this video'); }
+  const vw = el.videoWidth || 720, vh = el.videoHeight || 1280, k = Math.min(1, 720 / vw, 1280 / vh);
+  const W = Math.round(vw * k / 2) * 2, H = Math.round(vh * k / 2) * 2, u = W / 360;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d'), dest = ac.createMediaStreamDestination();
+  ac.createMediaElementSource(el).connect(dest);
+  const stream = new MediaStream([...c.captureStream(30).getVideoTracks(), ...dest.stream.getAudioTracks()]);
+  const mime = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'].find((m) => MediaRecorder.isTypeSupported(m)) || '';
+  const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : {}), ch = [];
+  rec.ondataavailable = (e) => e.data.size && ch.push(e.data);
+  rec.onstop = () => {
+    const t = (rec.mimeType || mime || 'video/webm').split(';')[0], a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(ch, { type: t })); a.download = 'jaxtok-' + v.author + (t.includes('mp4') ? '.mp4' : '.webm');
+    document.body.appendChild(a); a.click(); a.remove(); done(); toast('Video saved!');
+  };
+  const jingle = () => [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => {
+    const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + i * .13;
+    o.type = 'triangle'; o.frequency.value = f; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.35, t + .02);
+    g.gain.exponentialRampToValueAtTime(.001, t + (i == 4 ? 1.6 : .5)); o.connect(g); g.connect(dest); o.start(t); o.stop(t + 1.7);
+  });
+  const back = (p) => { const c1 = 1.70158; return 1 + (c1 + 1) * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); };
+  const logo = (cx, cy, s, rot) => { x.save(); x.translate(cx, cy); x.rotate(rot); x.scale(s, s); x.shadowColor = 'rgba(0,0,0,.5)'; x.shadowBlur = 12 * u; x.drawImage(WM, -40 * u, -40 * u, 80 * u, 80 * u); x.restore(); };
+  // watermark like TikTok's: still logo + name, fades to a second spot halfway where @username appears
+  const mark = (t, d) => {
+    const h = d / 2, second = t > h, lt = second ? t - h : t;
+    const a = Math.max(0, Math.min(1, lt / .4, second ? 1 : (h - t) / .4)) * .92;
+    const cx = 40 * u, cy = second ? H - 90 * u : 72 * u;
+    x.save(); x.globalAlpha = a; logo(cx, cy, .6, 0);
+    x.textBaseline = 'middle'; x.fillStyle = '#fff'; x.shadowColor = 'rgba(0,0,0,.6)'; x.shadowBlur = 5 * u;
+    x.font = `800 ${19 * u}px system-ui,sans-serif`; x.fillText('JaxTok', cx + 34 * u, cy - (second ? 9 * u : 0));
+    if (second) { x.font = `700 ${14 * u}px system-ui,sans-serif`; x.fillText('@' + v.author, cx + 34 * u, cy + 12 * u, W - 90 * u); }
+    x.restore();
+  };
+  const end = (tt) => {
+    const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#ec4899'); g.addColorStop(1, '#22d3ee'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+    x.fillStyle = 'rgba(255,255,255,.12)';
+    for (let i = 0; i < 8; i++) { const r = (20 + i * 9) * u, by = H - ((tt * 60 * u * (1 + i * .15) + i * 140 * u) % (H + 2 * r)) + r; x.beginPath(); x.arc(W * ((i * 37 % 100) / 100), by, r, 0, 7); x.fill(); }
+    const pop = Math.min(1, tt / .7), y = H * .36;
+    logo(W / 2, y, 2.1 * back(pop) * (1 + .06 * Math.sin(tt * 8)), Math.sin(tt * 9) * .14 + (1 - pop) * Math.PI * 2);
+    x.save(); x.globalAlpha = Math.max(0, Math.min(1, (tt - .5) / .5)); x.textAlign = 'center'; x.fillStyle = '#fff'; x.shadowColor = 'rgba(0,0,0,.4)'; x.shadowBlur = 8 * u;
+    x.font = `800 ${46 * u}px system-ui,sans-serif`; x.fillText('JaxTok', W / 2, y + 140 * u, W - 30 * u);
+    x.font = `700 ${19 * u}px system-ui,sans-serif`; x.fillText('Download JaxTok', W / 2, y + 185 * u, W - 30 * u); x.fillText('to discover new videos', W / 2, y + 212 * u, W - 30 * u);
+    x.restore();
+  };
+  let phase = 0, t0 = 0;
+  const loop = () => {
+    if (phase == 0) {
+      x.fillStyle = '#000'; x.fillRect(0, 0, W, H); x.drawImage(el, 0, 0, W, H);
+      const d = el.duration || 1; mark(el.currentTime, d);
+      if ($('svp')) $('svp').textContent = Math.round(el.currentTime / d * 100) + '% - keep this tab open';
+    } else { const tt = (performance.now() - t0) / 1000; end(tt); if (tt > 3.4) { rec.stop(); return; } }
+    requestAnimationFrame(loop);
+  };
+  el.onended = () => { phase = 1; t0 = performance.now(); jingle(); };
+  try { rec.start(250); el.currentTime = 0; el.muted = false; await el.play(); requestAnimationFrame(loop); }
+  catch (e) { if (rec.state != 'inactive') { rec.onstop = null; rec.stop(); } done('Could not save this video'); }
+}
+
+// ---------- sound on/off, tap-for-sound, feed arrows ----------
+function toggleMute() {
+  MUTE = !MUTE; localStorage.setItem('jt_mute', MUTE ? '1' : '');
+  document.querySelectorAll('section video').forEach((v) => { v.muted = MUTE; });
+  document.querySelectorAll('.mb i').forEach((i) => { i.className = 'fa-solid ' + (MUTE ? 'fa-volume-xmark' : 'fa-volume-high'); });
+  if (!MUTE) { BLOCKED = false; if ($('tapsnd')) $('tapsnd').remove(); }
+}
+function tapPill() {
+  if ($('tapsnd') || MUTE) return;
+  const b = document.createElement('button'); b.id = 'tapsnd';
+  b.className = 'fixed top-14 left-1/2 -translate-x-1/2 z-[55] px-4 py-2 rounded-full bg-black/70 text-xs font-semibold fi';
+  b.innerHTML = '<i class="fa-solid fa-volume-xmark"></i> Tap for sound';
+  b.onclick = () => { BLOCKED = false; document.querySelectorAll('section video').forEach((v) => { v.muted = false; }); b.remove(); };
+  document.body.appendChild(b);
+}
+function feedGo(d) { const f = $('feed2') || $('feed'); if (f) f.scrollBy({ top: d * f.clientHeight, behavior: 'smooth' }); }
+addEventListener('keydown', (e) => {
+  if (/INPUT|TEXTAREA/.test(document.activeElement.tagName) || $('sheet')) return;
+  if (e.key == 'ArrowDown') { feedGo(1); e.preventDefault(); } else if (e.key == 'ArrowUp') { feedGo(-1); e.preventDefault(); }
+});
+
+// ---------- create: camera, sounds, filters ----------
+let SND = null, CR = {}, _pa = null;
+const FILTERS = [['Normal', 'none'], ['Vivid', 'saturate(1.5) contrast(1.1)'], ['Warm', 'sepia(.35) saturate(1.3) hue-rotate(-12deg)'], ['Cool', 'saturate(1.2) hue-rotate(18deg) brightness(1.05)'], ['B&W', 'grayscale(1)'], ['Vintage', 'sepia(.6) contrast(.9) brightness(1.05)'], ['Glow', 'brightness(1.15) contrast(.9) saturate(1.25) blur(.6px)'], ['Noir', 'grayscale(1) contrast(1.4) brightness(.9)']];
+function stopCam() {
+  if (CR.rec && CR.rec.state != 'inactive') { CR.rec.onstop = null; try { CR.rec.stop(); } catch (e) {} }
+  clearInterval(CR.tm); cancelAnimationFrame(CR.raf);
+  if (CR.stream) CR.stream.getTracks().forEach((t) => t.stop());
+  if (CR.aud) CR.aud.pause();
+  if (CR.ac) CR.ac.close().catch(() => {});
+  CR = { facing: CR.facing || 'user', filter: CR.filter || 0, dur: CR.dur || 60, timer: CR.timer || 0 };
+}
+async function createView() {
+  stopCam();
+  const g = (d) => `background:linear-gradient(${d},color-mix(in srgb,var(--a) 80%,transparent),transparent)`;
+  $('view').innerHTML = `<div id="create" class="h-full w-full flex items-center justify-center bg-black"><div class="vw"><div class="clip">
+    <canvas id="cam" width="720" height="1280" class="absolute inset-0 w-full h-full object-cover"></canvas>
+    <div class="absolute inset-x-0 top-0 h-28 pointer-events-none" style="${g('to bottom')}"></div>
+    <div class="absolute inset-x-0 bottom-0 h-56 pointer-events-none" style="${g('to top')}"></div>
+    <div id="rbar" class="absolute top-0 left-0 h-1 bg-white z-20" style="width:0"></div>
+    <div class="absolute top-3 inset-x-3 z-10 flex items-center justify-between"><button onclick="SND=null;go('home')" class="w-10 h-10 text-2xl"><i class="fa-solid fa-xmark"></i></button>
+      <button onclick="pickCreateSound()" class="flex items-center gap-2 px-4 py-2 rounded-full bg-black/35 text-sm font-semibold max-w-[60%]"><i class="fa-solid fa-music"></i><span id="sname" class="truncate">${SND ? esc(SND.name) : 'Sounds'}</span></button><div class="w-10"></div></div>
+    <div class="absolute right-3 top-20 z-10 flex flex-col items-center gap-5 text-[10px] font-semibold">
+      ${[['flipCam()', 'camera-rotate', 'Flip'], ['pickFilter()', 'wand-magic-sparkles', 'Filters'], ['cycleTimer()', 'stopwatch', 'Timer']].map(([f, i, l]) => `<button onclick="${f}" class="flex flex-col items-center gap-1 drop-shadow"><i class="fa-solid fa-${i} text-xl"></i><span id="tl-${i}">${l}</span></button>`).join('')}</div>
+    <div id="cd" class="absolute inset-0 z-20 hidden items-center justify-center text-8xl font-extrabold pointer-events-none"></div>
+    <div class="absolute inset-x-0 bottom-0 z-10 pb-4 pt-2">
+      <div class="flex items-center justify-around"><button onclick="pickFilter()" class="flex flex-col items-center gap-1 text-[10px] font-semibold w-16"><span class="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-400 via-violet-400 to-pink-400 border-2 border-white"></span>Effects</button>
+        <button id="rb" onclick="recToggle()" class="w-20 h-20 rounded-full border-[5px] border-white flex items-center justify-center"><span id="ri" class="w-14 h-14 rounded-full bg-[var(--a)] transition-all"></span></button>
+        <label class="flex flex-col items-center gap-1 text-[10px] font-semibold w-16 cursor-pointer"><span class="w-9 h-9 rounded-lg bg-white/90 text-black flex items-center justify-center"><i class="fa-regular fa-image"></i></span>Upload<input type="file" accept="video/*" class="hidden" onchange="pickFile(this)"></label></div>
+      <div class="flex justify-center gap-6 mt-3 text-xs font-bold">${[60, 15].map((d) => `<button data-d="${d}" onclick="CR.dur=${d};durHl()" class="px-2 py-1">${d}s</button>`).join('')}</div></div>
+  </div></div></div>`;
+  durHl(); $('tl-stopwatch').textContent = CR.timer ? CR.timer + 's' : 'Timer';
+  await startCam();
+}
+function durHl() { document.querySelectorAll('#create [data-d]').forEach((b) => { const on = +b.dataset.d == CR.dur; b.style.opacity = on ? 1 : .6; b.style.borderBottom = on ? '2px solid #fff' : '2px solid transparent'; }); }
+async function startCam() {
+  if (CR.stream) CR.stream.getTracks().forEach((t) => t.stop());
+  const vc = { facingMode: CR.facing, width: { ideal: 720 }, height: { ideal: 1280 } };
+  try { CR.stream = await navigator.mediaDevices.getUserMedia({ video: vc, audio: true }); }
+  catch (e) { try { CR.stream = await navigator.mediaDevices.getUserMedia({ video: vc }); toast('Microphone not available'); } catch (x) { return toast('Camera not available. Use Upload instead.', 1); } }
+  if (!$('cam')) { CR.stream.getTracks().forEach((t) => t.stop()); return; }
+  CR.vid = Object.assign(document.createElement('video'), { srcObject: CR.stream, muted: true, playsInline: true });
+  await CR.vid.play().catch(() => {}); cancelAnimationFrame(CR.raf); camDraw();
+}
+function camDraw() {
+  const c = $('cam'), v = CR.vid; if (!c || !v) return;
+  const x = c.getContext('2d'), f = FILTERS[CR.filter || 0][1], vw = v.videoWidth, vh = v.videoHeight, can = 'filter' in x;
+  if (vw) {
+    const k = Math.max(c.width / vw, c.height / vh);
+    x.save(); if (CR.facing == 'user') { x.translate(c.width, 0); x.scale(-1, 1); }
+    if (can) x.filter = f;
+    x.drawImage(v, (c.width - vw * k) / 2, (c.height - vh * k) / 2, vw * k, vh * k); x.restore();
+  }
+  c.style.filter = can || f == 'none' ? '' : f;
+  CR.raf = requestAnimationFrame(camDraw);
+}
+function flipCam() { if (CR.rec) return; CR.facing = CR.facing == 'user' ? 'environment' : 'user'; startCam(); }
+function cycleTimer() { CR.timer = CR.timer == 0 ? 3 : CR.timer == 3 ? 10 : 0; $('tl-stopwatch').textContent = CR.timer ? CR.timer + 's' : 'Timer'; }
+function pickFilter() {
+  sheet(`<div class="p-5"><h3 class="font-bold text-sm text-center mb-3">Filters</h3><div class="grid grid-cols-4 gap-2">${FILTERS.map(([n], i) => `<button onclick="CR.filter=${i};closeSheet()" class="py-3 rounded-xl text-xs font-semibold bg-white/10" style="${i == CR.filter ? 'outline:2px solid var(--a)' : ''}">${n}</button>`).join('')}</div></div>`);
+}
+async function recToggle() {
+  if (CR.rec && CR.rec.state == 'recording') return finishRec();
+  if (!CR.stream || CR.busy) return toast(CR.busy ? 'Hold on...' : 'Camera not ready', 1);
+  if (CR.timer) {
+    CR.busy = 1; const cd = $('cd'); cd.classList.remove('hidden'); cd.classList.add('flex');
+    for (let n = CR.timer; n > 0; n--) { cd.textContent = n; await new Promise((r) => setTimeout(r, 1000)); if (!$('cd')) return; }
+    cd.classList.add('hidden'); cd.classList.remove('flex'); CR.busy = 0;
+  }
+  startRec();
+}
+async function startRec() {
+  const c = $('cam'); if (!c) return;
+  const ac = CR.ac = new (window.AudioContext || window.webkitAudioContext)(); await ac.resume();
+  const tracks = [...c.captureStream(30).getVideoTracks()];
+  try {
+    if (SND) {
+      const dest = ac.createMediaStreamDestination(), a = CR.aud = new Audio(); a.crossOrigin = 'anonymous'; a.src = API + SND.url;
+      const s = ac.createMediaElementSource(a); s.connect(dest); s.connect(ac.destination);
+      await a.play(); tracks.push(...dest.stream.getAudioTracks());
+    } else tracks.push(...CR.stream.getAudioTracks());
+  } catch (e) { toast('Could not use that sound, recording without it', 1); }
+  const mime = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'].find((m) => MediaRecorder.isTypeSupported(m)) || '';
+  const rec = CR.rec = new MediaRecorder(new MediaStream(tracks), mime ? { mimeType: mime } : {}), ch = [];
+  rec.ondataavailable = (e) => e.data.size && ch.push(e.data);
+  rec.onstop = () => {
+    if (!ch.length) return toast('Nothing was recorded', 1);
+    const t = (rec.mimeType || mime || 'video/webm').split(';')[0];
+    reviewView(new File(ch, 'video.' + (t.includes('mp4') ? 'mp4' : 'webm'), { type: t }));
+  };
+  rec.start(250); CR.t0 = Date.now(); $('ri').style.cssText = 'width:28px;height:28px;border-radius:8px';
+  CR.tm = setInterval(() => { const s = (Date.now() - CR.t0) / 1000; if ($('rbar')) $('rbar').style.width = Math.min(100, s / CR.dur * 100) + '%'; if (s >= CR.dur) finishRec(); }, 100);
+}
+function finishRec() { clearInterval(CR.tm); if (CR.aud) CR.aud.pause(); if (CR.rec && CR.rec.state == 'recording') CR.rec.stop(); }
+function pickFile(i) {
+  const f = i.files[0]; if (!f) return;
+  if (f.size > 50 * 1048576) return toast('Video must be under 50MB', 1);
+  if (SND) { SND = null; toast('Uploaded videos keep their own sound'); }
+  reviewView(f);
+}
+function reviewView(f) {
+  stopCam(); window._f = f;
+  $('view').innerHTML = `<div id="create" class="h-full w-full flex items-center justify-center bg-black"><div class="vw"><div class="clip">
+    <video src="${URL.createObjectURL(f)}" autoplay loop playsinline class="h-full w-full object-contain" onloadedmetadata="fitV(this)" onclick="this.paused?this.play():this.pause()"></video>
+    <button onclick="createView()" class="absolute top-3 left-3 z-10 w-10 h-10 text-2xl"><i class="fa-solid fa-chevron-left"></i></button>
+    <div class="absolute inset-x-0 bottom-0 p-4 pt-24 bg-gradient-to-t from-black/90 to-transparent space-y-3">
+      ${SND ? `<p class="text-xs flex items-center gap-1.5"><i class="fa-solid fa-music"></i><span class="truncate">${esc(SND.name)}</span></p>` : ''}
+      <textarea id="cp" rows="2" placeholder="Describe your video... #hashtags" class="${inp} resize-none"></textarea>
+      <div class="flex gap-2"><button onclick="createView()" class="flex-1 py-3 rounded-xl bg-white/15 text-sm font-semibold">Retake</button><button id="pub" onclick="publish()" class="flex-[2] py-3 rounded-xl bg-[var(--a)] text-sm font-semibold">Post</button></div></div>
+  </div></div></div>`;
+}
+// every posted video is a sound: tap the "original sound" line or the spinning disc to use it
+function useSound(id) { const v = V[id]; SND = { url: v.url, name: 'original sound - @' + v.author }; go('upload'); toast('Sound added. Tap record!'); }
+function prevSnd(u, btn) {
+  const was = btn.dataset.on; if (_pa) { _pa.pause(); _pa = null; }
+  document.querySelectorAll('.ps').forEach((b) => { b.innerHTML = '<i class="fa-solid fa-play"></i>'; delete b.dataset.on; });
+  if (was) return;
+  _pa = new Audio(API + u); _pa.play().catch(() => {}); btn.dataset.on = 1; btn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+  _pa.onended = () => { btn.innerHTML = '<i class="fa-solid fa-play"></i>'; delete btn.dataset.on; };
+}
+async function pickCreateSound() {
+  let vs = []; try { vs = await api('/api/videos?q='); } catch (e) {}
+  const l = window._sl = [...getSounds().map((s) => ({ url: s.url, name: s.name, sub: 'Saved sound' })), ...vs.map((v) => ({ url: v.url, name: 'original sound - @' + v.author, sub: v.caption }))];
+  sheet(`<div class="p-4"><div class="flex items-center justify-between mb-3"><h3 class="font-bold text-sm">Sounds</h3><button onclick="setSnd(${SND ? -2 : -1})" class="text-white/60 text-sm">Close</button></div>
+  <button onclick="setSnd(-1)" class="w-full text-left p-3 rounded-xl bg-white/5 mb-2 text-sm">No sound (use microphone)</button>
+  <div class="space-y-2">${l.map((s, i) => `<div class="flex items-center gap-3 p-2 rounded-xl bg-white/5"><button class="ps w-10 h-10 rounded-full bg-white/10 shrink-0" onclick="prevSnd('${s.url}',this)"><i class="fa-solid fa-play"></i></button><div class="min-w-0 flex-1"><p class="text-sm font-semibold truncate">${esc(s.name)}</p><p class="text-xs text-white/50 truncate">${esc(s.sub || '')}</p></div><button onclick="setSnd(${i})" class="px-4 py-2 rounded-lg bg-[var(--a)] text-xs font-semibold">Use</button></div>`).join('') || '<p class="text-center text-white/40 text-sm py-8">No sounds yet. Post a video and it becomes a sound.</p>'}</div></div>`);
+}
+function setSnd(i) {
+  if (_pa) { _pa.pause(); _pa = null; }
+  if (i != -2) SND = i < 0 ? null : window._sl[i];
+  closeSheet(); if ($('sname')) $('sname').textContent = SND ? SND.name : 'Sounds';
+}
+
 // ---------- start ----------
-if (token) api('/api/me').then((d) => { ME = d; boot(); }).catch(() => { token = null; authView(); }); else authView();
+// stay signed in on refresh: only a real "sign in again" answer logs you out.
+// If the server is just waking up (Render free tier), wait and retry instead of kicking you out.
+async function start() {
+  if (!token) return authView();
+  for (let i = 0; i < 10; i++) {
+    try { ME = await api('/api/me'); return boot(); }
+    catch (e) {
+      if (e.message == 'Please sign in again.') { token = null; localStorage.removeItem('jt'); return authView(); }
+      $('root').innerHTML = '<div class="h-full w-full flex flex-col items-center justify-center gap-3 text-white/60 text-sm"><img src="' + uri(LOGO) + '" class="w-16 h-16" alt="">Waking up the server...</div>';
+      await new Promise((r) => setTimeout(r, 4000));
+    }
+  }
+  authView();
+}
+start();
 </script>
   <script src="https://jaxtok.onrender.com/patch.js"></script>
 </body>
