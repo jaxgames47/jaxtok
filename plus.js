@@ -3,12 +3,28 @@
   const g = (id) => document.getElementById(id), own = () => !!(ME && ME.owner);
 
   // ---- no zooming on phones, light mode, light inspect deterrent ----
+  const LIGHT = [
+    'html.light,html.light body{background:#fff;color:#111}',
+    'html.light [class~="bg-black"],html.light [class~="bg-zinc-900"]{background:#fff!important}',
+    'html.light [class~="bg-zinc-800"],html.light [class~="bg-[#3a3a3a]"]{background:#e4e4e7!important}',
+    'html.light [class~="bg-[#1c1c1c]"]{background:#f4f4f5!important}',
+    'html.light [class~="bg-white/10"],html.light [class~="bg-white/15"]{background:rgba(0,0,0,.08)!important}',
+    'html.light [class~="bg-white/5"],html.light .hover\\:bg-white\\/5:hover{background:rgba(0,0,0,.05)!important}',
+    'html.light [class*="border-white"]{border-color:rgba(0,0,0,.12)!important}',
+    'html.light [class~="text-white/40"],html.light [class~="text-white/50"],html.light [class~="text-white/60"],html.light [class~="text-white/70"]{color:rgba(0,0,0,.55)!important}',
+    'html.light .to-black{--tw-gradient-to:#fff}html.light .from-zinc-900{--tw-gradient-from:#f4f4f5}',
+    'html.light [class~="bg-[var(--a)]"],html.light [class*="to-[var(--a)]"],html.light [class~="bg-red-600"],html.light [class~="bg-green-600"]{color:#fff}',
+    'html.light #ov,html.light #create,html.light #ov [class~="bg-black"],html.light #create [class~="bg-black"]{background:#000!important;color:#fff}',
+    'html.light .clip,html.light .acts{color:#fff}'].join('');
+  const mq = matchMedia('(prefers-color-scheme: light)');
+  const applyTheme = () => { const t = localStorage.getItem('jt_theme') || 'dark'; document.documentElement.classList.toggle('light', t == 'light' || (t == 'auto' && mq.matches)); };
+  applyTheme(); if (mq.addEventListener) mq.addEventListener('change', applyTheme);
+  window.setTheme = (t) => { localStorage.setItem('jt_theme', t); applyTheme(); settings(); };
   const mv = document.querySelector('meta[name=viewport]');
   if (mv) mv.content = 'width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover';
   const css = document.createElement('style');
-  css.textContent = 'input,textarea,select{font-size:16px!important}html,body{touch-action:manipulation;-webkit-text-size-adjust:100%}html.light body{filter:invert(1) hue-rotate(180deg)}html.light video,html.light img,html.light canvas{filter:invert(1) hue-rotate(180deg)}';
+  css.textContent = 'input,textarea,select{font-size:16px!important}.shbtn{display:none}@media (min-width:700px){.shbtn{display:flex}}html,body{touch-action:manipulation;-webkit-text-size-adjust:100%}'+LIGHT+'';
   document.head.appendChild(css);
-  if (localStorage.getItem('jt_light') == '1') document.documentElement.classList.add('light');
   ['gesturestart', 'gesturechange'].forEach((e) => addEventListener(e, (x) => x.preventDefault()));
   addEventListener('wheel', (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
   addEventListener('contextmenu', (e) => { if (!own()) e.preventDefault(); });
@@ -48,16 +64,17 @@
   window.shareCopy = (id) => { navigator.clipboard && navigator.clipboard.writeText(link(id)); closeSheet(); toast('Link copied'); };
   window.shareWA = (id) => { window.open('https://wa.me/?text=' + encodeURIComponent('Watch this on JaxTok ' + link(id)), '_blank'); closeSheet(); };
   window.shareSys = (id) => { navigator.share({ title: 'JaxTok', text: (V[id] && V[id].caption) || 'Watch this on JaxTok', url: link(id) }).catch(() => {}); closeSheet(); };
+  window.shScroll = (d) => g('shr').scrollBy({ left: d * 200 });
   window.share = function (id) {
     const v = V[id], del = v && (v.author == ME.username || ME.owner);
     const it = (ic, l, fn, c = 'bg-white/10') => `<button onclick="${fn}" class="shrink-0 w-16 space-y-2"><div class="w-14 h-14 mx-auto rounded-full ${c} flex items-center justify-center text-xl"><i class="${ic}"></i></div>${l}</button>`;
-    sheet('<div class="p-5 flex gap-3 overflow-x-auto ns text-center text-xs">'
+    sheet('<div class="relative"><button onclick="shScroll(-1)" class="shbtn absolute left-1 top-8 z-10 w-8 h-8 rounded-full bg-black/70 items-center justify-center"><i class="fa-solid fa-chevron-left"></i></button><div id="shr" onwheel="this.scrollLeft+=event.deltaY" style="scroll-behavior:smooth" class="p-5 flex gap-3 overflow-x-auto ns text-center text-xs">'
       + it('fa-solid fa-link', 'Copy link', `shareCopy('${id}')`)
       + it('fa-brands fa-whatsapp', 'WhatsApp', `shareWA('${id}')`, 'bg-green-600')
       + (navigator.share ? it('fa-solid fa-arrow-up-from-bracket', 'More apps', `shareSys('${id}')`) : '')
       + it('fa-solid fa-note-sticky', 'Sticker', `mkSticker('${id}')`)
       + it('fa-solid fa-download', 'Save video', `saveVideo('${id}')`, 'bg-[var(--a)]')
-      + (del ? it('fa-solid fa-trash', 'Delete', `closeSheet();delVideo('${id}')`, 'bg-red-600') : '') + '</div>');
+      + (del ? it('fa-solid fa-trash', 'Delete', `closeSheet();delVideo('${id}')`, 'bg-red-600') : '') + '</div><button onclick="shScroll(1)" class="shbtn absolute right-1 top-8 z-10 w-8 h-8 rounded-full bg-black/70 items-center justify-center"><i class="fa-solid fa-chevron-right"></i></button></div>');
   };
   const oc = window.card;
   window.card = (v) => oc(v).replace(/<button onclick="delVideo\('[^']*'\)"[\s\S]*?<\/button>/, '');
@@ -88,7 +105,6 @@
       Object.assign(ME, await api('/api/me')); closeSheet(); toast('Saved'); go('me');
     } catch (e) { fail(e); }
   };
-  window.setLight = (v) => { document.documentElement.classList.toggle('light', !!v); localStorage.setItem('jt_light', v ? '1' : ''); settings(); };
   window.setPref = async (k, v) => {
     if (k == 'sound') { MUTE = !v; localStorage.setItem('jt_mute', MUTE ? '1' : ''); }
     if (k == 'accent') document.documentElement.style.setProperty('--a', v);
@@ -99,7 +115,7 @@
     const sw = (l, k, on) => `<label class="flex justify-between items-center text-sm"><span>${l}</span><input type="checkbox" ${on ? 'checked' : ''} onchange="setPref('${k}',this.checked)" class="accent-[var(--a)] w-5 h-5"></label>`;
     sheet(`<div class="p-5 space-y-4"><h3 class="font-bold text-center">Settings</h3>
     ${own() ? '<button onclick="adminMenu()" class="w-full py-3 rounded-xl font-bold bg-yellow-400 text-black">👑 Owner menu</button>' : ''}
-    <div><p class="text-xs text-white/50 mb-2">Appearance</p><div class="flex gap-2">${[['Dark', 0], ['Light (beta)', 1]].map(([n, v]) => `<button onclick="setLight(${v})" class="flex-1 py-3 rounded-xl text-sm font-semibold bg-white/10" style="${!!v == L ? 'outline:2px solid var(--a)' : ''}">${n}</button>`).join('')}</div></div>
+    <div><p class="text-xs text-white/50 mb-2">Appearance</p><div class="flex gap-2">${[['Dark', 'dark'], ['Light', 'light'], ['Auto', 'auto']].map(([n, v]) => `<button onclick="setTheme('${v}')" class="flex-1 py-3 rounded-xl text-sm font-semibold bg-white/10" style="${v == (localStorage.getItem('jt_theme') || 'dark') ? 'outline:2px solid var(--a)' : ''}">${n}</button>`).join('')}</div></div>
     <div><p class="text-xs text-white/50 mb-2">Accent color</p><div class="flex gap-3">${COLORS.map((c) => `<button onclick="setPref('accent','${c}');this.parentNode.querySelectorAll('button').forEach(b=>b.style.outline='');this.style.outline='2px solid #fff'" class="w-8 h-8 rounded-full" style="background:${c};${c == (s.accent || '#ec4899') ? 'outline:2px solid #fff' : ''}"></button>`).join('')}</div></div>
     ${sw('Play videos with sound', 'sound', !MUTE)}${sw('Autoplay videos', 'autoplay', s.autoplay !== false)}
     <div><p class="text-xs text-white/50 mb-2">Linked accounts</p>${['Google', 'GitHub', 'Apple'].map((n) => `<div class="flex justify-between items-center py-2 text-sm"><span>${n}</span><span class="text-xs px-2 py-1 rounded bg-white/10 text-white/50">Coming soon</span></div>`).join('')}</div>
@@ -141,4 +157,67 @@
   };
   const orp = window.repAct;
   if (orp) window.repAct = (a, id, w) => (a == 'ban' ? adminAct('ban', w) : orp(a, id, w));
+
+  // ---- sticker editor: filmstrip with trim handles + playhead, Text, Crop, Still ----
+  const seek = (t) => { _sv.onseeked = drawS; _sv.currentTime = t; };
+  const nap = (t) => new Promise((res) => { _sv.onseeked = res; _sv.currentTime = t; setTimeout(res, 450); });
+  const lay = () => {
+    const p = (t) => (SC.dur ? t / SC.dur * 100 : 0);
+    if (g('bx')) { g('bx').style.left = p(SC.s) + '%'; g('bx').style.width = p(SC.e - SC.s) + '%'; g('hl').style.left = p(SC.s) + '%'; g('hr').style.left = 'calc(' + p(SC.e) + '% - 20px)'; g('ph').style.left = 'calc(' + p(SC.t) + '% - 2px)'; }
+    g('sl').textContent = SC.still ? 'Still frame' : (SC.e - SC.s).toFixed(1) + 's selected';
+    if (g('stl')) g('stl').style.outline = SC.still ? '2px solid var(--a)' : '';
+  };
+  const dg = (el, fn) => { el.onpointerdown = (a) => { a.preventDefault(); el.setPointerCapture(a.pointerId); el.onpointermove = (m) => { const r = g('fs').getBoundingClientRect(); fn(Math.max(0, Math.min(1, (m.clientX - r.left) / r.width)) * SC.dur); lay(); }; el.onpointerup = () => { el.onpointermove = null; }; }; };
+  async function strip() {
+    const c = g('fsc'), x = c.getContext('2d'), N = 8, w = c.width / N, vw = _sv.videoWidth || 1, vh = _sv.videoHeight || 1, k = Math.max(w / vw, c.height / vh);
+    for (let i = 0; i < N; i++) {
+      await nap(Math.min(SC.dur, (i + .5) / N * SC.dur)); if (!g('fsc')) return;
+      x.save(); x.beginPath(); x.rect(i * w, 0, w, c.height); x.clip(); x.drawImage(_sv, i * w + (w - vw * k) / 2, (c.height - vh * k) / 2, vw * k, vh * k); x.restore();
+    }
+    seek(SC.t);
+  }
+  const RATIOS = [[1, '1:1'], [16 / 9, '16:9'], [4 / 3, '4:3'], [9 / 16, '9:16']];
+  window.stText = () => { const i = g('st'); i.classList.toggle('hidden'); i.focus(); };
+  window.stCrop = () => { const i = (RATIOS.findIndex((r) => r[0] == SC.r) + 1) % RATIOS.length; SC.r = RATIOS[i][0]; g('cl').textContent = RATIOS[i][1]; drawS(); };
+  window.stStill = () => { SC.still = !SC.still; lay(); };
+  window.mkSticker = function (id, el) {
+    _sv = el || document.querySelector(`[data-v="${id}"] video`); if (_sv.pause) _sv.pause();
+    const vid = _sv.tagName == 'VIDEO', dur = vid && isFinite(_sv.duration) ? Math.floor(_sv.duration * 10) / 10 : 0;
+    SC = { r: 1, dur, s: 0, e: Math.min(dur, 3), t: 0, still: !vid };
+    const rb = (fn, inner, label, extra = '') => `<button onclick="${fn}" class="flex flex-col items-center gap-2 text-sm"><span ${extra} class="w-16 h-16 rounded-full flex items-center justify-center text-2xl" style="background:#333;color:#fff">${inner}</span><span>${label}</span></button>`;
+    sheet(`<div id="stk" class="p-5 space-y-3" style="background:#1c1c1c;color:#fff"><p id="sl" class="text-lg font-bold"></p>
+    <canvas id="sc" class="mx-auto rounded-2xl max-h-[30vh] max-w-full" style="background:#27272a"></canvas>
+    ${vid ? `<div id="fs" class="relative h-14 rounded-xl overflow-hidden" style="background:#27272a"><canvas id="fsc" width="340" height="56" class="w-full h-full"></canvas>
+      <div id="bx" class="absolute top-0 h-full" style="border:3px solid #fff;box-sizing:border-box;border-radius:8px"></div>
+      <div id="hl" class="absolute top-0 h-full w-5 flex items-center justify-center" style="background:#fff;color:#555;touch-action:none;cursor:ew-resize;border-radius:8px 0 0 8px">&lsaquo;</div>
+      <div id="hr" class="absolute top-0 h-full w-5 flex items-center justify-center" style="background:#fff;color:#555;touch-action:none;cursor:ew-resize;border-radius:0 8px 8px 0">&rsaquo;</div>
+      <div id="ph" class="absolute top-0 h-full w-1 rounded" style="background:#fff;touch-action:none;cursor:ew-resize;box-shadow:0 0 5px #000"></div></div>` : ''}
+    <div class="flex justify-center gap-8 pt-1">${rb('stText()', 'Aa', 'Text')}${rb('stCrop()', '<i class="fa-solid fa-crop-simple"></i>', '<b id="cl">1:1</b>')}${vid ? rb('stStill()', '<i class="fa-regular fa-image"></i>', 'Still', 'id="stl"') : ''}</div>
+    <input id="st" maxlength="24" oninput="drawS()" placeholder="Sticker text" class="hidden w-full px-4 py-3 rounded-xl text-sm outline-none" style="background:#333;color:#fff">
+    <button id="sv" onclick="saveSticker()" class="w-full py-3 rounded-xl font-semibold bg-[var(--a)]">Save sticker</button></div>`);
+    lay(); drawS();
+    if (vid) {
+      dg(g('hl'), (t) => { SC.s = Math.min(t, SC.e - .3); if (SC.e - SC.s > 5) SC.s = SC.e - 5; SC.t = Math.max(SC.t, SC.s); seek(SC.t); });
+      dg(g('hr'), (t) => { SC.e = Math.max(t, SC.s + .3); if (SC.e - SC.s > 5) SC.e = SC.s + 5; SC.t = Math.min(SC.t, SC.e); });
+      dg(g('ph'), (t) => { SC.t = Math.max(SC.s, Math.min(SC.e, t)); seek(SC.t); });
+      strip();
+    }
+  };
+  window.saveSticker = async function () {
+    const c = g('sc'), b = g('sv'), name = g('st').value || 'sticker';
+    const send = async (blob, fn) => {
+      const fd = new FormData(); fd.append('name', name); fd.append('sticker', blob, fn);
+      try { await api('/api/stickers', { method: 'POST', body: fd }); closeSheet(); toast('Sticker saved!'); if (SC.back) SC.back(); } catch (e) { fail(e); b.disabled = false; b.textContent = 'Save sticker'; }
+    };
+    b.disabled = true;
+    if (SC.still || !SC.dur) { drawS(); c.toBlob((bl) => (bl ? send(bl, 's.png') : toast('Could not capture this frame', 1)), 'image/png'); return; }
+    if (!c.captureStream || !window.MediaRecorder) { toast('Clip stickers are not supported in this browser', 1); b.disabled = false; return; }
+    const len = SC.e - SC.s; b.textContent = 'Recording ' + len.toFixed(1) + 's...';
+    const ch = [], rec = new MediaRecorder(c.captureStream(30));
+    rec.ondataavailable = (e) => e.data.size && ch.push(e.data);
+    rec.onstop = () => send(new Blob(ch, { type: (rec.mimeType || 'video/webm').split(';')[0] }), 'clip');
+    await nap(SC.s); _sv.muted = true; _sv.loop = false;
+    const t0 = performance.now(); rec.start(); try { await _sv.play(); } catch (e) {}
+    (function loop() { drawS(); if (performance.now() - t0 < len * 1000) requestAnimationFrame(loop); else { rec.stop(); _sv.pause(); } })();
+  };
 })();
